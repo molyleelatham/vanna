@@ -1,0 +1,27 @@
+[project]
+name = "vanna-hackathon"
+version = "0.1.0"
+description = "Vanna: federated FX execution intelligence on Flower"
+requires-python = ">=3.11,<4.0"
+dependencies = [
+  "flwr[simulation]==1.35.0",
+  "numpy>=2.0,<3.0",
+  "openai>=2.16.0,<3.0.0",
+  "pydantic>=2.10,<3.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3,<10.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [
+  "apps/agent",
+  "apps/federation",
+  "packages/vanna-core/src",
+]

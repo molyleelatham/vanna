@@ -1,0 +1,34 @@
+[project]
+name = "vanna-agent"
+version = "0.1.0"
+description = "Collaborative Vanna and LastLook Flower AgentApp"
+requires-python = ">=3.11,<4.0"
+license = { file = "LICENSE" }
+dependencies = [
+  "flwr>=1.35.0,<2.0",
+  "openai>=2.16.0,<3.0.0",
+  "pydantic>=2.10,<3.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["vanna_agent"]
+
+[tool.flwr.app]
+publisher = "vanna"
+fab-format-version = 1
+flwr-version-target = "1.35.0"
+fab-include = [
+  "vanna_agent/**/*.py",
+  "vanna_agent/artifacts/*.json",
+  "LICENSE",
+]
+
+[tool.flwr.app.config.agent]
+input = '{"pair":"EUR/USD","side":"BUY","size_bucket":"1m-5m","volatility":"high","available_providers":["LP_A","LP_B","LP_C"]}'
+
+[tool.flwr.app.components]
+agentapp = "vanna_agent.agent_app:app"

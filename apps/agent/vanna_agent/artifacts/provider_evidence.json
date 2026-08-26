@@ -1,0 +1,43 @@
+{
+  "cohort_size": 5,
+  "raw_records_shared": 0,
+  "client_identities_shared": 0,
+  "providers": [
+    {
+      "provider": "LP_A",
+      "sample_count": 450,
+      "fill_probability": 0.503755,
+      "rejection_probability": 0.496245,
+      "expected_slippage_bps": 1.1,
+      "expected_latency_ms": 78.0,
+      "displayed_price_benefit_bps": 0.45,
+      "rejection_asymmetry": 0.22,
+      "model_version": "fed-8688617400",
+      "generated_at": "2026-08-26T11:37:13.408393+00:00"
+    },
+    {
+      "provider": "LP_B",
+      "sample_count": 450,
+      "fill_probability": 0.561979,
+      "rejection_probability": 0.438021,
+      "expected_slippage_bps": 0.42,
+      "expected_latency_ms": 31.0,
+      "displayed_price_benefit_bps": 0.1,
+      "rejection_asymmetry": 0.03,
+      "model_version": "fed-8688617400",
+      "generated_at": "2026-08-26T11:37:13.408393+00:00"
+    },
+    {
+      "provider": "LP_C",
+      "sample_count": 450,
+      "fill_probability": 0.541797,
+      "rejection_probability": 0.458203,
+      "expected_slippage_bps": 0.84,
+      "expected_latency_ms": 86.0,
+      "displayed_price_benefit_bps": 0.2,
+      "rejection_asymmetry": 0.08,
+      "model_version": "fed-8688617400",
+      "generated_at": "2026-08-26T11:37:13.408393+00:00"
+    }
+  ]
+}

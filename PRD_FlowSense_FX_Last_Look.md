@@ -1,4 +1,4 @@
-# PRD: FlowSense FX — Federated Last-Look & Execution Intelligence
+# PRD: Vanna — Federated Last-Look & Execution Intelligence
 **Collaborative Agent Hackathon — Cambridge, 26 Aug 2026**  
 **Framework:** Flower Agent + SuperGrid &middot; **Tracks:** SuperGrid (Track 1) + Infrastructure (Track 2)  
 **Compute:** Shared AMD Instinct MI300X model endpoints  
@@ -24,7 +24,7 @@ There is also a compliance requirement. Real orders and OTC transactions need du
 
 ## 2. Solution
 
-FlowSense FX is a federated execution-intelligence product for FX brokers, execution desks, prime brokers, and liquidity providers. Each participant trains locally on its own quote, order, fill, rejection, latency, and slippage history. Flower aggregates model updates across participating desks so the shared model learns broader execution patterns without moving raw orders or client records.
+Vanna is a federated execution-intelligence product for FX brokers, execution desks, prime brokers, and liquidity providers. Each participant trains locally on its own quote, order, fill, rejection, latency, and slippage history. Flower aggregates model updates across participating desks so the shared model learns broader execution patterns without moving raw orders or client records.
 
 The product predicts the **expected execution value** of each available liquidity provider instead of selecting the tightest displayed quote.
 
@@ -46,14 +46,14 @@ The product then uses collaborative AgentApps to explain and govern the recommen
 
 | Agent | Primary function | Output |
 |---|---|---|
-| **FlowSense** | Predicts fill probability and expected execution cost | Recommended liquidity provider and expected cost |
+| **Vanna** | Predicts fill probability and expected execution cost | Recommended liquidity provider and expected cost |
 | **LastLookAgent** | Measures rejection asymmetry, quote age, response latency, and post-request price movement | Last-look review signal, not an automatic misconduct finding |
 | **CounterpartyRiskAgent** | Scores liquidity-provider reliability across execution conditions | Confidence, reliability factors, and route limits |
 | **MarginAgent** | Monitors simulated credit, leverage, and settlement pressure | Exposure warning or human-review request |
 | **ManipulationWatch** | Looks for artificial liquidity, coordinated quote behaviour, and cross-pair anomalies | Surveillance signal for review |
 | **GovernanceAgent** | Monitors privacy, data access, participant behaviour, and possible coordinated outcomes | Suppression, escalation, or human-review decision |
 
-For the hackathon, FlowSense and LastLookAgent are the core working agents. CounterpartyRiskAgent should be the second working agent for the collaborative-agent demonstration. MarginAgent, ManipulationWatch, and GovernanceAgent can be lightweight extensions or visible prototype outputs if time permits.
+For the hackathon, Vanna and LastLookAgent are the core working agents. CounterpartyRiskAgent should be the second working agent for the collaborative-agent demonstration. MarginAgent, ManipulationWatch, and GovernanceAgent can be lightweight extensions or visible prototype outputs if time permits.
 
 ### Commercial outcome
 
@@ -78,7 +78,7 @@ Compliance, auditability, and governance are built into the design so the produc
 | Desks need to learn from a larger execution history | Federated training combines local learning without centralising raw orders |
 | Client flow and liquidity-provider behaviour are commercially sensitive | Each desk retains its raw records and returns model updates rather than raw data |
 | Live execution must remain fast | The latest model is stored and used locally; the live route does not wait for SuperGrid |
-| Several specialised agents must collaborate | AgentApps can pass structured context between FlowSense, LastLookAgent, and CounterpartyRiskAgent |
+| Several specialised agents must collaborate | AgentApps can pass structured context between Vanna, LastLookAgent, and CounterpartyRiskAgent |
 | Recommendations need to be explainable | The agents can return factors, confidence, data freshness, and review requirements |
 | Privacy must not break compliance | Real order IDs and UTIs remain in the local desk audit store; shared IDs are pseudonymous |
 | The network must resist free-riding | Contribution quality can be measured at federation level and used in an incentive mechanism |
@@ -134,7 +134,7 @@ The hackathon should use SuperGrid's simulation environment for the MVP. Five si
 
 6. **Flower federated loop** — Each desk trains locally, sends model parameters, receives the aggregated model, and evaluates the model locally. Track model accuracy, validation loss, round duration, and bytes transferred.
 
-7. **FlowSense AgentApp** — Given an order and available quotes, ranks liquidity providers by expected execution value and recommends a route.
+7. **Vanna AgentApp** — Given an order and available quotes, ranks liquidity providers by expected execution value and recommends a route.
 
 8. **LastLookAgent** — Compares acceptance and rejection behaviour across market conditions. It should identify elevated rejection asymmetry as a review signal, not make an automatic accusation.
 
@@ -186,7 +186,7 @@ Five simulated desks
         ↓
 Flower federated model
         ↓
-FlowSense recommendation
+Vanna recommendation
         ↓
 LastLookAgent explanation
         ↓
@@ -209,7 +209,7 @@ Do not make MarginAgent, ManipulationWatch, UTI reconciliation, or formal equili
 
 5. **Run the Flower federation** — Each desk trains locally. Show that raw orders and client identities remain local while model updates are aggregated.
 
-6. **Run FlowSense** — The federated model recommends the provider with the best expected execution value rather than the tightest displayed price.
+6. **Run Vanna** — The federated model recommends the provider with the best expected execution value rather than the tightest displayed price.
 
 7. **Run LastLookAgent** — It explains that LP_A has elevated conditional rejection asymmetry during high-volatility periods. It explicitly says this is a review signal, not proof of misconduct.
 
@@ -234,7 +234,7 @@ Do not make MarginAgent, ManipulationWatch, UTI reconciliation, or formal equili
 - A real `flwr run` completes end-to-end on synthetic FX data across five simulated desks.
 - The system trains local models and produces an aggregated federated model.
 - The dashboard proves that raw orders, client identities, and local audit mappings do not leave each desk.
-- FlowSense recommends a route using expected execution value rather than displayed price alone.
+- Vanna recommends a route using expected execution value rather than displayed price alone.
 - LastLookAgent identifies a conditional rejection pattern without automatically labelling it misconduct.
 - At least one agent hands structured context to another agent through the AgentApp state mechanism.
 - Local execution does not wait for a SuperGrid call during the simulated live-order decision.

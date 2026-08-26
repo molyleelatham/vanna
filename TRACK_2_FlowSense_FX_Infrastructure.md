@@ -1,14 +1,14 @@
-# Track 2: FlowSense FX Collaboration Infrastructure
+# Track 2: Vanna FX Collaboration Infrastructure
 
 ## Project Summary
 
-**FlowSense FX** is a reusable collaboration infrastructure for regulated, latency-sensitive agent systems.
+**Vanna** is a reusable collaboration infrastructure for regulated, latency-sensitive agent systems.
 
 The demonstration use case is FX execution and last-look analysis. Multiple FX desks train on private execution data, while Flower federates model improvements and SuperGrid runs collaborative AgentApps. The system helps a desk distinguish between the best displayed quote and the best executable quote without sharing raw client orders, trading intentions, or proprietary desk data.
 
 The infrastructure is the product. FX is the proof case.
 
-> **FlowSense FX enables agents from separate FX desks to collaborate safely and usefully without centralising raw order flow or blocking live execution.**
+> **Vanna enables agents from separate FX desks to collaborate safely and usefully without centralising raw order flow or blocking live execution.**
 
 ---
 
@@ -45,7 +45,7 @@ incentives
 
 ## 2. Track 2 Solution
 
-FlowSense FX provides a collaboration layer with seven core capabilities:
+Vanna provides a collaboration layer with seven core capabilities:
 
 1. **Privacy-controlled feature transformation** — converts raw local execution data into approved bucketed features before anything leaves a desk.
 2. **Federated model training** — uses Flower to aggregate model updates without centralising raw orders.
@@ -58,7 +58,7 @@ FlowSense FX provides a collaboration layer with seven core capabilities:
 The FX agents demonstrate what this infrastructure enables:
 
 ```text
-FlowSense
+Vanna
     ↓
 LastLookAgent
     ↓
@@ -117,7 +117,7 @@ Local execution recommendation
 ┌──────────────────────────────────────────────────────┐
 │ COLLABORATIVE AGENTAPPS                              │
 │                                                      │
-│ FlowSense                                             │
+│ Vanna                                                 │
 │ LastLookAgent                                         │
 │ CounterpartyRiskAgent                                 │
 │ GovernanceAgent                                       │
@@ -252,7 +252,7 @@ Example evidence record:
 {
   "event_type": "execution_assessment",
   "run_id": "run-123",
-  "source_agent": "FlowSense",
+  "source_agent": "Vanna",
   "pair": "EUR/USD",
   "side": "BUY",
   "size_bucket": "1m-5m",
@@ -354,9 +354,9 @@ For the hackathon, describe this as an **equilibrium-inspired incentive mechanis
 
 ## 5. Agent Responsibilities
 
-### FlowSense
+### Vanna
 
-FlowSense is the primary commercial agent.
+Vanna is the primary commercial agent.
 
 Input:
 
@@ -509,7 +509,7 @@ Local execution models
         ↓
 Flower federated aggregation
         ↓
-FlowSense AgentApp
+Vanna AgentApp
         ↓
 LastLookAgent handoff
         ↓
@@ -580,7 +580,7 @@ LP_C:
 4. Show that the local desk has incomplete evidence.
 5. Run Flower federated training.
 6. Show that raw orders remain local.
-7. Run FlowSense with the updated model.
+7. Run Vanna with the updated model.
 8. Show that LP_B has better expected execution value.
 9. Run LastLookAgent to explain LP_A's conditional rejection signal.
 10. Run CounterpartyRiskAgent if available.
@@ -808,7 +808,7 @@ Escalate to review.
 
 ### Phase 4: Collaborative agents
 
-1. Build FlowSense.
+1. Build Vanna.
 2. Add LastLookAgent.
 3. Add structured context handoff.
 4. Add confidence and evidence fields.
@@ -827,7 +827,7 @@ Escalate to review.
 
 ## 13. Track 2 Submission Statement
 
-> **FlowSense FX introduces reusable infrastructure for regulated, latency-sensitive collaborative agents. The infrastructure transforms sensitive local execution records into approved bucketed features, trains shared models through Flower, passes validated structured evidence between AgentApps, manages explicit context, keeps live execution local, provides safe fallbacks, rewards useful participation, and prevents collaborative intelligence from becoming a coordinated market instruction. We demonstrate the infrastructure in FX by detecting when the tightest displayed quote is not the best executable quote because of last-look rejection asymmetry, latency, and slippage.**
+> **Vanna introduces reusable infrastructure for regulated, latency-sensitive collaborative agents. The infrastructure transforms sensitive local execution records into approved bucketed features, trains shared models through Flower, passes validated structured evidence between AgentApps, manages explicit context, keeps live execution local, provides safe fallbacks, rewards useful participation, and prevents collaborative intelligence from becoming a coordinated market instruction. We demonstrate the infrastructure in FX by detecting when the tightest displayed quote is not the best executable quote because of last-look rejection asymmetry, latency, and slippage.**
 
 ---
 
