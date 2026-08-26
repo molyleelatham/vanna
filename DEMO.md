@@ -46,8 +46,10 @@ displayed quote keeps winning flow it doesn't deserve.
 - Vanna ranks providers by expected *executable* cost —
   `P(fill) × price benefit − slippage − rejection cost − latency cost` —
   not by displayed price.
-- Local XGBoost models run as a client-side benchmark against the federated
-  predictions, with feature importance and a model-agreement flag.
+- A genuine **one-desk vs five-desk comparison**: a model trained on desk 0's
+  partition alone is scored against the federated final ensemble on held-out
+  data, per provider. This is the measured proof that collaboration changes
+  conclusions — not a restatement of the constants the evidence came from.
 
 **Six-agent collaborative chain**
 
@@ -68,9 +70,11 @@ displayed quote keeps winning flow it doesn't deserve.
 - Six typed connectors — market data, order flow, execution history, risk
   metrics, surveillance feed, federation metrics — exposed to the model as
   function tools in a bounded 3-turn loop.
-- Every connector has a safe fallback; market data falls back to a direct
-  Alpha Vantage call for real FX rates when Runtime connectors are
-  unavailable. A hard 10-call budget per run bounds connector use.
+- Honest availability: agents blend connector data into assessments **only
+  when it is genuinely live** (`*_if_live` returns `None` otherwise); tool
+  answers report `"available": false` instead of silently returning constants.
+  Market data falls back to a direct Alpha Vantage call for real FX rates.
+  A hard 10-call budget per run bounds connector use.
 
 **Safety and oversight**
 
@@ -81,6 +85,23 @@ displayed quote keeps winning flow it doesn't deserve.
   synchronized-routing concentration check, rare-participant query block.
 - Human review is a first-class outcome; every recommendation carries a
   reason, confidence, model version, and timestamp.
+- Every exported evidence field carries a **provenance label** (federated
+  prediction vs synthetic profile constant) — no ambiguity about what the
+  model learned.
+
+**LLM narration via AMD endpoint**
+
+- Qwen3.5-397B (hackathon AMD endpoint, Responses API) narrates the finished
+  chain through a streamed, bounded tool loop with a 120 s timeout. The model
+  explains; it never decides. Endpoint failure degrades to a deterministic
+  fallback rendering of the same typed assessments.
+
+**Approval gateway and dashboard**
+
+- A local-only gateway (`vanna_agent.gateway`) runs the AgentApp via the local
+  SuperLink and exposes the governed decision to a Vite/TS dashboard
+  (`localhost:5173`). "Send to approval queue" creates a local, non-executable
+  `PENDING_HUMAN_APPROVAL` audit record — never a broker/OMS order.
 
 ## How Flower is used
 
@@ -131,13 +152,16 @@ locally cached model and never blocks on SuperGrid.
 
 **Track 1 — SuperGrid: collaboration multiplies agent value.** No single
 desk's agents can see the market-wide pattern; five desks' agents can. The
-demo makes the multiplication visible: a local-only recommendation is
-low-confidence and wrong-footed by LP_A's tight displayed quote, while the
-federated evidence lets the same agent chain route to LP_B at 2.03 bps
-expected executable cost. Each agent in the chain contributes something the
-others cannot — cost ranking, rejection asymmetry, reliability, margin,
-surveillance, governance — and every contribution is rendered as its own
-visible line in the output.
+multiplication is measured, not asserted: a model trained on desk 0 alone
+concludes LP_C fills **~60%** of orders, while the five-desk federated
+ensemble knows it is **~11%** — collaboration literally reverses a desk's
+conclusion. The same chain then routes to LP_B at 2.03 bps expected
+executable cost, past LP_A's tighter displayed quote. Each agent contributes
+something the others cannot — cost ranking, rejection asymmetry, reliability,
+margin, surveillance, governance — and every contribution is rendered as its
+own visible line in the output. All of it runs on the real
+`@molyleela/Vanna` deployment federation: five authenticated SuperNodes,
+completed federation and AgentApp runs.
 
 **Track 2 — Infrastructure: a reusable collaboration layer.** The FX agents
 are the proof case; the product is the infrastructure: privacy-controlled
@@ -147,13 +171,54 @@ inference, governance and anti-collusion controls, contribution scoring, and
 graceful failure at every layer. The same layer transfers to cross-bank fraud
 detection, insurance collaboration, or trade surveillance without redesign.
 
+## Why — the questions judges ask
+
+**Why not just pool the data?**
+Raw orders carry client identities, UTIs, and live intent; desks are
+competitors. Pooling is legally and commercially impossible — which is
+exactly why the problem is unsolved today. Federation is the only version of
+this collaboration that can exist.
+
+**Why six agents instead of one big prompt?**
+Each agent owns one regulatory-grade concern with its own typed contract:
+execution value, last-look asymmetry, counterparty reliability, margin
+pressure, surveillance, governance. Separation makes each one independently
+testable, independently replaceable, and — critically for the demo — makes
+the *value of each contribution visible*. One monolithic agent would be an
+unauditable black box.
+
+**Why does the LLM never decide?**
+Numbers come from deterministic, tested code; the model only narrates
+finished assessments. A model that decides is ungovernable; a model that
+explains is an interface. If the endpoint dies mid-demo, the deterministic
+fallback renders the same answer — resilience is the feature.
+
+**Why XGBoost by default, and why offer SecAgg+?**
+XGBoost bagging captures the nonlinear desk behavior (LP × volatility
+interactions drive the signal). SecAgg+ is a summation protocol that cannot
+merge trees, so the secure mode runs the transparent logistic model — the
+trade-off is stated openly, and both modes export the identical evidence
+schema.
+
+**Why does governance say no so often?**
+Because the controls are independent: last-look review, low confidence, stale
+evidence, small cohorts, and margin pressure each escalate on their own. The
+system can say yes (Clean Allow scenario) — which is what makes its "no"
+credible.
+
+**Why the approval queue instead of execution?**
+Vanna is advisory by design. The gateway's `PENDING_HUMAN_APPROVAL` record is
+the consequential action boundary: a human always holds the final step, and
+nothing in the codebase can create, transmit, or execute a real order.
+
 ## Why technical excellence
 
 - **Verified end-to-end on real infrastructure, today.** SuperGrid federation
   run `12309076582906127164` — 3 rounds, 5/5 nodes, 0 failures, 0 raw records
   shared, ~2.5 min. SuperGrid AgentApp run `1896158749138907396` — full
-  six-agent chain, LP_B @ 2.03 bps, Governance HUMAN_REVIEW, ~22 s. Local
-  simulation: 3 rounds in 12.81 s, centralised eval loss 0.6931 → 0.6646.
+  six-agent chain, LP_B @ 2.03 bps, Governance HUMAN_REVIEW, ~22 s. SecAgg+
+  secure-mode simulation: 3 rounds, 5/5 nodes, 16.4 s, centralised loss
+  0.6931 → 0.6528. Qwen-narrated local SuperLink runs: ~65 s.
 - **Determinism where it matters.** Every number in a recommendation comes
   from typed, tested code. The LLM narrates the chain through a streamed,
   bounded tool loop (Responses API, `MAX_TOOL_TURNS=3`); it never decides.
@@ -166,9 +231,10 @@ detection, insurance collaboration, or trade surveillance without redesign.
   narration. No connector → typed fallback values. Failed agent → fallback
   answer. No SuperGrid → local simulation. Stale evidence or small cohort →
   `USE_LOCAL_FALLBACK`. The demo cannot be bricked by one outage.
-- **Tested, not just asserted.** 21 passing tests cover privacy boundaries,
-  federation behaviour, routing, governance, and every agent role. Both FABs
-  build cleanly with pinned Flower `1.35.0`.
+- **Tested, not just asserted.** 44 passing tests cover privacy boundaries,
+  both federation modes, routing, governance, every agent role, the
+  SecAgg+ contract, the gateway, and the failure fallbacks. Both FABs build
+  cleanly with pinned Flower `1.35.0`.
 - **Engineering for audit.** Training manifests, per-round checkpoints,
   model digests, feature-importance exports, and a persisted live-data
   snapshot mean every demo claim traces to an artifact on disk.
@@ -188,8 +254,9 @@ detection, insurance collaboration, or trade surveillance without redesign.
    displayed quote; LastLook flags LP_A's asymmetry as review-only.
 5. **(30s) Governance:** HUMAN_REVIEW outcome — independent controls triggered;
    no automation overreach.
-6. **(30s) Resilience:** point out the fallback line — model narration failed
-   on the live run and the answer still rendered deterministically.
+6. **(30s) Resilience:** the Qwen narration is live — then point out that if
+   the endpoint dies, the deterministic fallback renders the same answer
+   (shown in the earlier SuperGrid run, where narration fell back cleanly).
 
 ### Commands
 
@@ -205,6 +272,10 @@ cd apps/federation && uv run flwr run . --federation-config="num-supernodes=5" \
 cd ../agent && uv run flwr run . supergrid --federation @molyleela/Vanna --stream \
   --run-config "agent.input='{\"pair\":\"EUR/USD\",\"side\":\"BUY\",\"size_bucket\":\"1m-5m\",\"volatility\":\"high\",\"available_providers\":[\"LP_A\",\"LP_B\",\"LP_C\"]}'"
 
+# AgentApp narrated live by Qwen3.5-397B (local SuperLink with AMD endpoint running)
+cd apps/agent && uv run flwr run . local-superlink --stream \
+  --run-config "agent.input='{\"pair\":\"EUR/USD\",\"side\":\"BUY\",\"size_bucket\":\"1m-5m\",\"volatility\":\"high\",\"available_providers\":[\"LP_A\",\"LP_B\",\"LP_C\"]}' model-id='/models/Qwen3.5-397B-A17B-FP8'"
+
 # Zero-network fallback (always works)
 uv run python scripts/local_demo.py
 ```
@@ -212,6 +283,10 @@ uv run python scripts/local_demo.py
 ### Trading terminal demo
 
 ```bash
+# Terminal 0: local SuperLink must already be running with the model endpoint.
+export FLWR_MODEL_API_ENDPOINT="<full /v1/responses endpoint>"
+uv run flower-superlink --insecure
+
 # Optional: enables a public quote in the terminal; never commit this key.
 export ALPHAVANTAGE_API_KEY="<key>"
 
@@ -227,6 +302,24 @@ The terminal displays the governed local decision and the separate Flower
 runtime state. **Send to approval queue** creates a local
 `PENDING_HUMAN_APPROVAL` audit record; it does not create, transmit, or execute
 a broker/OMS order.
+
+## Terminal scenario appendix
+
+The terminal presets use these verified local-SuperLink inputs. Each runs the
+same six-agent Flower AgentApp chain narrated by Qwen.
+
+| Preset | Order input | Expected governed outcome |
+|---|---|---|
+| **The Twist** | `EUR/USD`, BUY, `1m-5m`, high, LP_A/LP_B/LP_C | LP_B at ~2.1 bps; LP_A's +0.45 bps displayed benefit loses to ~6.0 bps executable cost; `HUMAN_REVIEW`. |
+| **Clean Allow** | `EUR/USD`, BUY, `<1m`, calm, LP_B | `ALLOW_LOCAL_RECOMMENDATION`. |
+| **Throttle** | `EUR/USD`, BUY, `1m-5m`, normal, LP_B/LP_C | `REDUCE_SIZE`; the margin control recommends a 0.75 multiplier. |
+| **Stress Escalation** | `GBP/JPY`, SELL, `>10m`, high, LP_A/LP_B/LP_C | `HUMAN_REVIEW` under stressed margin and LP_A review signals. |
+| **Trust Check** | `EUR/USD`, SELL, `5m-10m`, normal, LP_A | `HUMAN_REVIEW`; LP_A is not automatically approved even when it is the only option. |
+
+For the collaboration proof, the genuine model-comparison narration shows desk
+0 estimating LP_C at roughly 60% fill probability while the five-desk
+federation estimates roughly 11%. Last-look asymmetry remains a review signal,
+never a misconduct finding.
 
 ## Honest limitations (say these if asked)
 
