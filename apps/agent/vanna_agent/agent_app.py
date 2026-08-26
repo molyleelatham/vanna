@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 from flwr.agentapp import AgentApp, AgentSession
 from flwr.app import ConfigRecord, Context
@@ -155,11 +156,45 @@ def persist_result(context: Context, result: dict[str, Any], answer: str, connec
         )
 
 
+def terminal_request_id(context: Context) -> str | None:
+    """Return a validated browser-to-AgentApp correlation ID, when supplied."""
+    value = context.run_config.get("terminal.request-id")
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("terminal.request-id must be a UUID string")
+    try:
+        return str(UUID(value))
+    except ValueError as exc:
+        raise ValueError("terminal.request-id must be a UUID string") from exc
+
+
+def emit_terminal_decision(
+    agent: AgentSession,
+    request_id: str | None,
+    *,
+    status: str,
+    result: dict[str, Any] | None = None,
+) -> None:
+    """Stream a terminal-safe Flower run result; never include raw desk data."""
+    if request_id is None:
+        return
+    event: dict[str, Any] = {
+        "type": "vanna.decision",
+        "request_id": request_id,
+        "status": status,
+    }
+    if result is not None:
+        event["result"] = result
+    agent.events.emit(event)
+
+
 @app.main()
 def main(agent: AgentSession, context: Context) -> None:
     prompt = context.run_config.get("agent.input")
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("agent.input must be a non-empty JSON string")
+    request_id = terminal_request_id(context)
 
     # Model ID can be overridden per run (SuperGrid runs can't set env vars)
     model_id = context.run_config.get("model-id") or MODEL
@@ -173,12 +208,17 @@ def main(agent: AgentSession, context: Context) -> None:
         result = run_pipeline(prompt, connectors=connectors)
     except Exception as exc:
         answer = pipeline_failure_answer(str(exc))
+        emit_terminal_decision(agent, request_id, status="failed")
         with context.locked():
             context.state.config_records["vanna-state"] = ConfigRecord(
                 {"json": json.dumps({"error": str(exc), "answer": answer})}
             )
         print(answer)
         return
+
+    # Emit the typed deterministic result before optional model narration. This
+    # lets a local terminal consume a real AgentApp run even if narration fails.
+    emit_terminal_decision(agent, request_id, status="completed", result=result)
     
     # Load evidence for model comparison
     import json

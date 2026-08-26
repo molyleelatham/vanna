@@ -1,0 +1,91 @@
+import type { EvidenceArtifact, PipelineResult } from "../types";
+
+export const demoEvidence: EvidenceArtifact = {
+  cohort_size: 5,
+  raw_records_shared: 0,
+  client_identities_shared: 0,
+  providers: [
+    {
+      provider: "LP_A",
+      sample_count: 450,
+      fill_probability: 0.299503,
+      rejection_probability: 0.828729,
+      expected_slippage_bps: 1.58,
+      expected_latency_ms: 98.4,
+      displayed_price_benefit_bps: 0.45,
+      rejection_asymmetry: 0.22,
+      model_version: "fed-xgb-b8f07874e6",
+      generated_at: "2026-08-26T15:43:14.705263+00:00",
+    },
+    {
+      provider: "LP_B",
+      sample_count: 450,
+      fill_probability: 0.875007,
+      rejection_probability: 0.200113,
+      expected_slippage_bps: 0.94,
+      expected_latency_ms: 52.1,
+      displayed_price_benefit_bps: 0.1,
+      rejection_asymmetry: 0.03,
+      model_version: "fed-xgb-b8f07874e6",
+      generated_at: "2026-08-26T15:43:14.705263+00:00",
+    },
+    {
+      provider: "LP_C",
+      sample_count: 450,
+      fill_probability: 0.105751,
+      rejection_probability: 1,
+      expected_slippage_bps: 1.31,
+      expected_latency_ms: 106.4,
+      displayed_price_benefit_bps: 0.2,
+      rejection_asymmetry: 0.08,
+      model_version: "fed-xgb-b8f07874e6",
+      generated_at: "2026-08-26T15:43:14.705263+00:00",
+    },
+  ],
+};
+
+export const demoResult: PipelineResult = {
+  order_context: {
+    pair: "EUR/USD",
+    side: "BUY",
+    size_bucket: "1m-5m",
+    volatility: "high",
+    available_providers: ["LP_A", "LP_B", "LP_C"],
+  },
+  handoff_chain: [
+    "Vanna",
+    "LastLookAgent",
+    "CounterpartyRiskAgent",
+    "MarginAgent",
+    "ManipulationWatch",
+    "GovernanceAgent",
+  ],
+  live_path: "local-non-blocking",
+  vanna_recommendation: {
+    provider: "LP_B",
+    expected_cost_bps: 2.03,
+    confidence: "high",
+    reason: "LP_B has the lowest expected executable cost after fill, slippage, rejection, and latency.",
+    model_version: "fed-xgb-b8f07874e6",
+  },
+  governance: {
+    action: "HUMAN_REVIEW",
+    reasons: [
+      "High volatility requires trader confirmation.",
+      "Recommendation remains advisory; no provider action is automatic.",
+    ],
+    automatic_execution: false,
+    automatic_blacklist: false,
+    collective_instruction: false,
+    misconduct_finding: false,
+  },
+  contributions: [
+    { agent: "Vanna", summary: "Ranks LP_B at 2.03 bps expected executable cost." },
+    { agent: "LastLookAgent", summary: "Flags LP_A's 0.22 rejection asymmetry for review, not misconduct." },
+    { agent: "CounterpartyRiskAgent", summary: "Adds reliability context without automatically excluding a provider." },
+    { agent: "MarginAgent", summary: "Checks margin and settlement pressure before final posture." },
+    { agent: "ManipulationWatch", summary: "Adds a surveillance signal for human review only." },
+    { agent: "GovernanceAgent", summary: "Returns HUMAN_REVIEW with no auto-execution or collective instruction." },
+  ],
+  privacy: { raw_records_shared: 0, client_identities_shared: 0 },
+};

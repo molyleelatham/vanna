@@ -10,6 +10,11 @@ dist/
 build/
 *.fab
 artifacts/generated/
+artifacts/approval_queue.jsonl
 data/generated/
 .env
 .autohand/
+node_modules/
+*.tsbuildinfo
+apps/dashboard/vite.config.js
+apps/dashboard/vite.config.d.ts

@@ -79,6 +79,22 @@ Location: `apps/agent`
 The FABs remain separate because Flower does not allow an `agentapp` component
 in the same bundle as `serverapp` and `clientapp` components.
 
+### Demo dashboard
+
+Location: `apps/dashboard`
+
+- A standalone React/Vite terminal pairs with a localhost-only Python gateway
+  (`vanna_agent.gateway`) for the 3–5 minute demo.
+- The gateway accepts only the strict, bucketed `OrderRequest`, retrieves a
+  public Alpha Vantage quote with an explicit local fallback, and invokes the
+  deterministic AgentApp domain path against approved evidence.
+- The terminal can create a local `PENDING_HUMAN_APPROVAL` audit record only.
+  It cannot send broker/OMS orders, automatically execute, blacklist, or
+  coordinate providers.
+- A SuperLink or SuperGrid AgentApp run remains a separate Flower runtime
+  demonstration. The terminal labels this separation instead of claiming a
+  direct browser-to-SuperLink control path.
+
 ## Runtime targets
 
 - Local simulation: managed local SuperLink with five simulated SuperNodes.

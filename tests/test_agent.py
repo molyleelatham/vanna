@@ -1,4 +1,6 @@
 import json
+from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
@@ -9,6 +11,8 @@ from vanna_agent.agent_app import (
     deterministic_answer,
     pipeline_failure_answer,
     run_pipeline,
+    emit_terminal_decision,
+    terminal_request_id,
 )
 from vanna_agent.agents import HANDOFF_CHAIN
 from vanna_agent.agents.contracts import GovernanceAssessment, LastLookAssessment
@@ -43,6 +47,35 @@ def test_structured_handoff_and_local_fallback() -> None:
     assert "Margin" in answer
     assert "ManipulationWatch" in answer
     assert "Governance" in answer
+
+
+def test_terminal_event_uses_validated_request_id() -> None:
+    request_id = str(uuid4())
+    context = SimpleNamespace(run_config={"terminal.request-id": request_id})
+    emitted: list[dict[str, object]] = []
+    agent = SimpleNamespace(events=SimpleNamespace(emit=emitted.append))
+
+    assert terminal_request_id(context) == request_id
+    emit_terminal_decision(
+        agent,
+        request_id,
+        status="completed",
+        result={"privacy": {"raw_records_shared": 0}},
+    )
+
+    assert emitted == [{
+        "type": "vanna.decision",
+        "request_id": request_id,
+        "status": "completed",
+        "result": {"privacy": {"raw_records_shared": 0}},
+    }]
+
+
+def test_terminal_request_id_rejects_malformed_value() -> None:
+    context = SimpleNamespace(run_config={"terminal.request-id": "not-a-uuid"})
+
+    with pytest.raises(ValueError, match="UUID"):
+        terminal_request_id(context)
 
 
 def test_contributions_render_one_line_per_agent_in_handoff_order() -> None:

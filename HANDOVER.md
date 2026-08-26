@@ -24,8 +24,13 @@ The core Flower infrastructure is working, and SuperGrid is live end-to-end.
   `--run-config secure-aggregation=true`; local simulation verified
   (3 rounds, 5/5 nodes, 0 failures, 16.37s; centralized loss 0.6931 →
   0.6528, accuracy 0.607 → 0.647)
-- Tests: 27 passing
+- Tests: 34 passing
 - Deterministic live-path demo: working (full 6-agent chain)
+- **Trading terminal:** `apps/dashboard` is a minimal React/Vite order-ticket
+  experience. Its localhost-only `vanna_agent.gateway` can show a public Alpha
+  Vantage quote, assess a strict bucketed order through the deterministic
+  AgentApp domain path, and write a local human-approval record. It has no
+  broker/OMS execution path and remains separate from both Flower FABs.
 
 The completed federation run executed three FedAvg rounds across five clients
 in 12.81 seconds. Centralised evaluation loss moved from `0.6931` to `0.6646`.
@@ -49,6 +54,9 @@ The run reported zero raw records and zero client identities shared.
 - `packages/vanna-core/src/vanna_core` — reusable domain contracts
 - `scripts/sync_federation_artifact.py` — federation-to-agent handoff
 - `scripts/local_demo.py` — endpoint-independent demo
+- `apps/dashboard/` — standalone evidence and agent-chain presentation UI
+- `apps/agent/vanna_agent/gateway.py` — local-only quote, decision, and
+  human-approval gateway
 - `TECH_ARCH.md` — architecture and integration contracts
 - `AGENTS.md` — contribution and safety instructions
 - `TODO.md` — prioritized completion plan

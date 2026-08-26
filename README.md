@@ -37,6 +37,7 @@ independent Flower apps:
 ```text
 apps/federation/       five-desk Flower simulation and evidence export
 apps/agent/            all six typed agent roles and current AgentApp entry point
+apps/dashboard/        standalone React dashboard for the demo and evidence review
 packages/vanna-core/   reusable privacy, schemas, scoring, and governance
 scripts/               artifact handoff and deterministic live-path demo
 tests/                 privacy, federation, routing, governance, and agent tests
@@ -54,6 +55,33 @@ uv run python scripts/local_demo.py
 
 The local demo is the latency-safe path: it never waits for Flower or a model
 endpoint and can use the last approved artifact.
+
+## Run the demo dashboard
+
+The dashboard is a terminal-style React application; it does not sit in either
+Flower FAB. A localhost-only gateway retrieves a public Alpha Vantage FX quote
+when configured and invokes the deterministic AgentApp domain path against the
+approved evidence artifact.
+
+```bash
+# Terminal 1: optional public FX quote source (never commit this value)
+export ALPHAVANTAGE_API_KEY="<key>"
+
+# Terminal 2: local gateway (port 8010; port 8000 belongs to SuperLink)
+cd apps/agent
+uv run python -m vanna_agent.gateway
+
+# Terminal 3: browser UI (port 5173)
+cd apps/dashboard
+npm install
+npm run dev
+```
+
+The ticket accepts only pair, side, size bucket, volatility, and available
+providers. `Assess order` returns a deterministic, governed recommendation;
+`Send to approval queue` writes a local non-executable audit record. It never
+sends a broker/OMS order. Without an Alpha Vantage key or when the provider
+fails, the quote strip labels its safe local fallback.
 
 ## Run the real five-desk federation
 
