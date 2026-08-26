@@ -138,3 +138,61 @@ Output includes all 6 agents + final Governance decision.
 **Melanie:** Follow `MELANIE.md` to start 5 SuperNodes when ready
 
 The **local demo is fully functional** — no blocker for hackathon demo preparation.
+
+---
+
+## 🔎 REVIEW GAPS (skeptical audit — 2026-08-26)
+
+Findings from a code review of what is actually wired vs. what the docs claim.
+These are the real "not finished" items. Ordered by how badly they undercut the
+demo narrative.
+
+### 🔴 Critical — headline claims the code does not back up
+
+- [ ] **Federation output is mostly hardcoded, not learned.**
+  `server_app.export_approved_evidence` only takes `fill_probability` from the
+  trained model (at one fixed high-vol feature vector per LP). `slippage`,
+  `latency`, `displayed_price_benefit`, `rejection_asymmetry`, `sample_count`
+  are a hardcoded `profiles` dict — and those constants dominate
+  `domain.execution_cost`. Either derive these from the model/data, or stop
+  claiming "the federated model recommends the route."
+- [ ] **"Local XGBoost vs Federated" comparison is circular.**
+  `xgboost_local._train_local_xgb_models` (and the duplicate in `connectors.py`)
+  trains on synthetic targets built from the *same constants* the federation
+  evidence hardcodes, so `model_agreement` is guaranteed. Rebuild as a genuine
+  local-only vs federated comparison on a held-out set, or remove the claim.
+- [ ] **Compute the actual commercial result.** PRD §5.10 / README "local vs
+  federated bps improvement" is still a placeholder — nothing computes it.
+- [ ] **Tests are green but cover the wrong code.** `test_federation.py` tests
+  `vanna_federation.model` (dead logistic model). The real `FedXgbBagging` path
+  (`xgboost_federated.py`) has zero tests. Add tests for the XGBoost train/eval,
+  `run_pipeline`, orchestrator end-to-end, connectors, and model-failure fallback.
+
+### 🟠 High — stale docs / stale "measured" numbers
+
+- [ ] **Purge the stale metric.** HANDOVER "loss 0.6931 → 0.6646" is the old
+  logistic cold-start (ln 2); the XGBoost run starts pre-trained and can't hit
+  0.6931. Re-capture from a real XGBoost run or delete it (PRD requires real figures).
+- [ ] **Fix contradictory docs.** README + TECH_ARCH still say "NumPy logistic
+  model" and "future / not-yet-merged OrchestratorAgent"; HANDOVER/TODO say it's
+  merged. Federation is XGBoost now — drop the "federated logistic" label
+  everywhere (commit msg, comparison labels, docstrings).
+
+### 🟡 Medium — architecture debt
+
+- [ ] **`packages/vanna-core` is orphaned** — no shipping app imports it (only
+  tests). Either wire the apps to it or delete it (it's a 3rd parallel copy of
+  schemas/privacy/decisioning/governance).
+- [ ] **Remove dead/duplicate code:** `federation/xgboost_model.py` (0 importers),
+  `federation/model.py` (test-only), `domain.govern` (unused), and the duplicated
+  model-comparison impl (`xgboost_local` vs `connectors`).
+- [ ] **"Live connectors" are constant fallbacks in the real path.** With no
+  configured connector/API key, every `_or_fallback` returns a fixed constant and
+  `execution_history_or_fallback` returns the *same* values for every provider —
+  so "live enrichment" is a near no-op. Make it real or stop advertising it.
+
+### 🟢 Low
+
+- [ ] `market_data_or_fallback` only catches `ConnectorError`; the Alpha Vantage
+  path can raise `KeyError`/`httpx` errors that escape the fallback.
+- [ ] `.env` listed twice in `.gitignore` (harmless; `.env` is correctly untracked).

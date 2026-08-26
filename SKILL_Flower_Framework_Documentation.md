@@ -246,15 +246,32 @@ Use the installed documentation and source for the current version before relyin
 
 ### Common Agent APIs
 
-Current Flower Agent examples commonly use concepts equivalent to:
+In current Flower Agent (verified against 1.35.0), the model is called through an
+**OpenAI-compatible client** pointed at the runtime endpoint — not through the
+agent/session object. The session object provides connectors and event streaming:
 
 ```python
-agent.responses.create(...)
-agent.connectors.tools(...)
-agent.connectors.call(...)
+from openai import OpenAI
+
+# Model calls go through an OpenAI-compatible client, not agent.responses.
+client = OpenAI(
+    base_url=os.environ["FLWR_RUNTIME_BASE_URL"],
+    api_key=os.environ["FLWR_RUNTIME_API_KEY"],
+    max_retries=0,
+)
+client.responses.create(model=MODEL, input=messages, stream=True, tools=[...])
+
+# The agent session provides connectors and streaming events.
+tools = agent.connectors.tools(TOOL_REFS)   # tool schema discovery
+result = agent.connectors.call(tool_call)    # execute a connector tool
+agent.events.emit(event.to_dict())           # stream events back to the runtime
 ```
 
-These names and signatures must be checked against the installed version.
+The runtime endpoint is provided through the environment variables
+`FLWR_RUNTIME_BASE_URL` and `FLWR_RUNTIME_API_KEY`. The `flwr.agentapp` module
+exposes `AgentApp`, `AgentSession`, `AgentConnectors`, `AgentEvents`, and
+`AgentResponses`. These names and signatures must be checked against the
+installed version.
 
 A model request normally includes:
 
@@ -760,7 +777,7 @@ Before running remotely, verify:
 - Flower version is pinned.
 - AgentApp entry point is correct.
 - Run input is defined.
-- Model endpoint environment variable is set before starting required infrastructure.
+- Model endpoint environment variables (`FLWR_RUNTIME_BASE_URL`, `FLWR_RUNTIME_API_KEY`) are set before starting required infrastructure.
 - Connector references are valid.
 - Federation ID is correct.
 - User is a member of the federation.

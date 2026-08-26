@@ -11,7 +11,7 @@ from flwr.agentapp import AgentApp, AgentSession
 from flwr.app import ConfigRecord, Context
 from openai import OpenAI
 
-from .agents import OrchestratorAgent
+from .agents import HANDOFF_CHAIN, OrchestratorAgent
 from .connectors import ConnectorClient
 from .domain import OrderRequest, ProviderEvidence
 from .xgboost_local import train_local_xgboost_models, compare_models  # type: ignore
@@ -59,10 +59,15 @@ def run_pipeline(
     evidence = [ProviderEvidence.model_validate(item) for item in payload["providers"]]
 
     orchestrator = OrchestratorAgent(connectors=connectors)
-    assessments = orchestrator.assess(order, evidence)
+    # Score against the artifact's own timestamp so a checked-in evidence JSON
+    # is not treated as stale by the freshness/governance controls.
+    artifact_time = evidence[0].generated_at if evidence else None
+    assessments = orchestrator.assess(order, evidence, now=artifact_time)
 
     return {
         "order_context": order.model_dump(mode="json"),
+        "handoff_chain": list(HANDOFF_CHAIN),
+        "live_path": "local-non-blocking",
         "vanna_recommendation": assessments["recommendation"].model_dump(mode="json"),
         "last_look_signal": assessments["last_look"].model_dump(mode="json"),
         "counterparty_risk": assessments["counterparty_risk"].model_dump(mode="json"),
@@ -84,7 +89,9 @@ def deterministic_answer(result: dict[str, Any], failure: str | None = None) -> 
     mg = result.get("margin", {})
     mp = result.get("manipulation", {})
 
+    chain = " -> ".join(result.get("handoff_chain", HANDOFF_CHAIN))
     lines = [
+        f"Handoff: {chain}",
         f"Vanna recommends {rec['provider']} at an estimated "
         f"{rec['expected_cost_bps']:.2f} bps executable cost.",
         rec["reason"],

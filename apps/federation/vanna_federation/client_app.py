@@ -16,6 +16,7 @@ from .xgboost_federated import (
     bytes_to_xgb_model,
 )
 from .persistence import save_desk_partition, load_desk_partition
+from .privacy import validate_shared_payload
 
 app = ClientApp()
 
@@ -57,17 +58,19 @@ def train(msg: Message, context: Context) -> Message:
         num_local_trees=int(context.run_config["local-trees"]),
     )
     
+    # Only weights + numeric metrics leave the desk; assert no raw identifiers.
+    shared_metrics = {
+        "train_loss": loss,
+        "num-examples": len(data.y_train),
+        "raw-records-shared": 0,
+    }
+    validate_shared_payload(shared_metrics)
+
     # Return updated model as bytes array
     content = RecordDict(
         {
             "arrays": ArrayRecord([np.frombuffer(updated_bytes, dtype=np.uint8)]),
-            "metrics": MetricRecord(
-                {
-                    "train_loss": loss,
-                    "num-examples": len(data.y_train),
-                    "raw-records-shared": 0,
-                }
-            ),
+            "metrics": MetricRecord(shared_metrics),
         }
     )
     return Message(content=content, reply_to=msg)
@@ -88,11 +91,11 @@ def evaluate(msg: Message, context: Context) -> Message:
     global_model_bytes = msg.content["arrays"].to_numpy_ndarrays()[0].tobytes()
     metrics_dict = evaluate_xgboost(global_model_bytes, x_test, y_test)
     
-    metrics = MetricRecord(
-        {
-            "eval_loss": metrics_dict["logloss"],
-            "eval_accuracy": metrics_dict["accuracy"],
-            "num-examples": len(y_test),
-        }
-    )
-    return Message(content=RecordDict({"metrics": metrics}), reply_to=msg)
+    shared_metrics = {
+        "eval_loss": metrics_dict["logloss"],
+        "eval_accuracy": metrics_dict["accuracy"],
+        "num-examples": len(y_test),
+    }
+    validate_shared_payload(shared_metrics)
+
+    return Message(content=RecordDict({"metrics": MetricRecord(shared_metrics)}), reply_to=msg)
