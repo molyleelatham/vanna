@@ -26,10 +26,13 @@ The run reported zero raw records and zero client identities shared.
 
 - `apps/federation/vanna_federation/client_app.py` — local desk training
 - `apps/federation/vanna_federation/server_app.py` — FedAvg and artifact export
+- `apps/federation/vanna_federation/desk_config.py` — **DeskConfig + API endpoint loading**
+- `apps/federation/vanna_federation/data.py` — parameterized desk data generation
 - `apps/agent/vanna_agent/agent_app.py` — **full 6-agent orchestrator entry point**
 - `apps/agent/vanna_agent/agents/orchestrator.py` — **OrchestratorAgent sequencing all 6 agents**
 - `apps/agent/vanna_agent/domain.py` — deterministic routing and governance
 - `apps/agent/vanna_agent/agents/` — all seven independent typed agent roles
+- `apps/agent/vanna_agent/connectors.py` — **ConnectorClient + Alpha Vantage fallback**
 - `packages/vanna-core/src/vanna_core` — reusable domain contracts
 - `scripts/sync_federation_artifact.py` — federation-to-agent handoff
 - `scripts/local_demo.py` — endpoint-independent demo
@@ -133,6 +136,17 @@ To connect SuperNodes to the `@molyleela/Vanna` federation:
 3. Run the complete AgentApp on `@molyleela/Vanna` with the selected AMD model.
 4. Add agent timeout, malformed-output, and child-failure integration tests.
 5. Record only measured final demo metrics.
+
+## New capabilities (since last handover)
+
+- **Parameterized desk simulations** (`desk_config.py`): Each desk's execution behavior is defined by a `DeskConfig` with all coefficients (provider mix, volatility response, interaction terms, noise). Configs can be:
+  - Generated randomly with `generate_random_desk_configs(num_desks, seed)`
+  - Loaded from JSON with `load_desk_configs(path)`
+  - Fetched from an API endpoint with `fetch_desk_configs_from_api(endpoint, api_key)`
+  - Saved to JSON for version control with `save_desk_configs(configs, path)`
+- **Agent-side live data connectors** (`connectors.py`): `ConnectorClient` wraps Runtime connectors + Alpha Vantage direct fallback for market data. All 7 agents accept optional `connectors` parameter to blend federation evidence with live data.
+- **Tool loop** (`agent_app.py`): `MAX_TOOL_TURNS=3` with 6 function tools (market_data, order_flow, execution_history, risk_metrics, surveillance_signal, federation_metrics).
+- **Live snapshot audit**: `persist_result()` captures live data snapshot in `context.state`.
 
 ## Known limitations
 
