@@ -5,6 +5,7 @@ from .governance import GovernanceAgent
 from .last_look import LastLookAgent
 from .manipulation_watch import ManipulationWatch
 from .margin import MarginAgent
+from .orchestrator import OrchestratorAgent
 from .vanna import VannaAgent
 
 AGENT_REGISTRY = {
@@ -16,6 +17,7 @@ AGENT_REGISTRY = {
         MarginAgent,
         ManipulationWatch,
         GovernanceAgent,
+        OrchestratorAgent,
     )
 }
 
@@ -26,5 +28,6 @@ __all__ = [
     "LastLookAgent",
     "ManipulationWatch",
     "MarginAgent",
+    "OrchestratorAgent",
     "VannaAgent",
 ]
