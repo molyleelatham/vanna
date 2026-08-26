@@ -27,65 +27,57 @@ flwr federation status @molyleela/Vanna
 
 ## Start a SuperNode (run 5 times, in 5 terminals)
 
-### Option A: Simulation/Testing (no local data)
+> **Verified on Flower 1.35.0 (2026-08-26).** The SuperGrid Fleet API is at
+> `fleet-supergrid.flower.ai:443`. There is no `--federation` flag on
+> `flower-supernode` — federation membership is set server-side via
+> `flwr federation add-supernode`. Do not use `--insecure` (SuperGrid is TLS).
+
+### One-time per node: key pair + registration (already done for Moly's 5 nodes)
+
 ```bash
-# Each terminal runs ONE SuperNode (uses synthetic data from FAB)
-flower-supernode \
-  --superlink supergrid.flower.ai \
-  --federation @molyleela/Vanna
+# 1. Generate an EC P-384 key pair (OpenSSH format)
+ssh-keygen -t ecdsa -b 384 -f ~/vanna_data/keys/desk_0_private.pem -N ""
+
+# 2. Register the public key on SuperGrid → returns a node ID
+flwr supernode register ~/vanna_data/keys/desk_0_private.pem.pub supergrid
+
+# 3. Add the node to the federation
+flwr federation add-supernode <NODE_ID> @molyleela/Vanna supergrid
 ```
 
-### Option B: Deployment Mode (with real desk data) — **Recommended for Hackathon**
+Moly's registered nodes (keys in `~/vanna_data/keys/`, not in Git):
+
+| Desk | Node ID | Script |
+|------|---------|--------|
+| 0 (DESK_A) | 14730157165456493861 | `start_supernode_desk_0.sh` |
+| 1 (DESK_B) | 2606826679259899920 | `start_supernode_desk_1.sh` |
+| 2 (DESK_C) | 9164357068139953982 | `start_supernode_desk_2.sh` |
+| 3 (DESK_D) | 165198172234468922 | `start_supernode_desk_3.sh` |
+| 4 (DESK_E) | 819782348755101228 | `start_supernode_desk_4.sh` |
+
+### Start command (per node)
+
 ```bash
-# Each terminal runs ONE SuperNode with its own desk partition
-# Terminal 1 (DESK_A):
-flower-supernode \
-  --insecure \
-  --superlink supergrid.flower.ai \
-  --federation @molyleela/Vanna \
-  --node-config="data-path=/app/data/desk_0.npz"
+# On Moly's machine just run: ./start_supernode_desk_N.sh  (N = 0..4)
+# Each script stages the desk partition, then execs:
 
-# Terminal 2 (DESK_B):
 flower-supernode \
-  --insecure \
-  --superlink supergrid.flower.ai \
-  --federation @molyleela/Vanna \
-  --node-config="data-path=/app/data/desk_1.npz"
-
-# Terminal 3 (DESK_C):
-flower-supernode \
-  --insecure \
-  --superlink supergrid.flower.ai \
-  --federation @molyleela/Vanna \
-  --node-config="data-path=/app/data/desk_2.npz"
-
-# Terminal 4 (DESK_D):
-flower-supernode \
-  --insecure \
-  --superlink supergrid.flower.ai \
-  --federation @molyleela/Vanna \
-  --node-config="data-path=/app/data/desk_3.npz"
-
-# Terminal 5 (DESK_E):
-flower-supernode \
-  --insecure \
-  --superlink supergrid.flower.ai \
-  --federation @molyleela/Vanna \
-  --node-config="data-path=/app/data/desk_4.npz"
+  --superlink fleet-supergrid.flower.ai:443 \
+  --auth-supernode-private-key "$HOME/vanna_data/keys/desk_N_private.pem" \
+  --node-config="partition-id=N" \
+  --port 909N   # unique per node when sharing one machine (9094–9098)
 ```
 
-**Key differences:**
-| Option | Data Source | Use Case |
-|--------|-------------|----------|
-| A | Synthetic (in FAB) | Quick test, no local files |
-| B | Real desk partitions (NPZ) | **Production / Hackathon demo** |
-
-**For Option B, each SuperNode needs its desk partition NPZ file.** See "Prepare Desk Data" below.
-
-**Important:**
+**Notes:**
+- `--node-config` must be valid TOML-ish: `partition-id=0` (int) works; string
+  values need inner quotes, e.g. `--node-config='data-path="/app/data/desk_0.npz"'`.
+  The federation ClientApp reads `partition-id`; it loads
+  `artifacts/desk_partitions/desk_N.npz` if present and falls back to
+  deterministic synthetic data otherwise.
 - All 5 must connect **simultaneously** (federation requires `min_train_nodes=5`)
 - Keep terminals open — nodes must stay connected for all 3 FedAvg rounds (~15-30s)
 - If a node drops, the round fails
+- Verify with `flwr supernode list supergrid` — all 5 should show `online`
 
 ---
 
