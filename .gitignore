@@ -47,6 +47,10 @@ htmlcov/
 .nox/
 coverage.xml
 
+# Generated artifacts
+artifacts/generated/
+data/generated/
+
 # Jupyter
 .ipynb_checkpoints/
 

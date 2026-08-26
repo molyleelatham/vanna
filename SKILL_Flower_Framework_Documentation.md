@@ -334,7 +334,7 @@ Pass only the information the next agent needs.
 Example:
 
 ```text
-FlowSense → LastLookAgent
+Vanna → LastLookAgent
 
 - Order pair
 - Side
@@ -435,7 +435,7 @@ When the limit is reached:
 ```text
 User request
      ↓
-FlowSense AgentApp
+Vanna AgentApp
      ↓ structured state
 LastLook AgentApp
      ↓ structured state
@@ -446,7 +446,7 @@ Human-controlled execution recommendation
 
 For FX execution:
 
-- FlowSense estimates expected execution value.
+- Vanna estimates expected execution value.
 - LastLookAgent analyses rejection asymmetry.
 - CounterpartyRiskAgent checks provider reliability.
 - GovernanceAgent checks safety and collusion conditions.
@@ -458,7 +458,7 @@ Start with one working agent and add a second only after the first is reliable.
 Good MVP:
 
 ```text
-FlowSense + LastLookAgent
+Vanna + LastLookAgent
 ```
 
 Optional extensions:
@@ -498,7 +498,7 @@ GovernanceAgent
 ┌──────────────────────────────────────────────┐
 │ Local AgentApps                             │
 │                                              │
-│ FlowSense                                   │
+│ Vanna                                       │
 │ LastLookAgent                               │
 │ CounterpartyRiskAgent                       │
 │ GovernanceAgent                             │
@@ -835,7 +835,7 @@ Test:
 - Tool-loop limit.
 - Low-confidence recommendation.
 - Human-review escalation.
-- Handoff from FlowSense to LastLookAgent.
+- Handoff from Vanna to LastLookAgent.
 
 ### Demo acceptance test
 
@@ -918,7 +918,7 @@ One excellent working agent is better than six disconnected stubs.
 
 ### Phase 3: agent
 
-1. Build FlowSense.
+1. Build Vanna.
 2. Add expected execution value.
 3. Add LastLookAgent.
 4. Add structured context handoff.

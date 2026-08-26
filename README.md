@@ -1,68 +1,138 @@
-# flowerhackathon
+# Vanna
 
-Shared Flower hackathon repo for SuperGrid, SuperLink, and collaborative AgentApps.
+Vanna is a Flower-powered, federated FX execution-intelligence prototype for
+the 2026 Cambridge Collaborative Agent Hackathon. It demonstrates that the
+tightest displayed quote is not always the best executable quote.
 
-This branch (`supergrid-connectivity`) pulls the shared GitHub project into the local workspace and adds the Flower `AgentApp` so SuperGrid / SuperLink / connectivity work can merge back into `main`.
+Five simulated desks train on private execution histories. Flower aggregates
+their model updates. Six typed agent roles cover execution value, last look,
+counterparty reliability, margin pressure, manipulation signals, and
+governance. The current bounded Vanna → LastLook runtime remains in place until
+the final orchestrator merge. Raw orders, client identities, UTIs, and live
+intentions never enter the shared payload.
 
-## Team docs
+## Architecture
 
-| File | What it is |
-|---|---|
-| [AGENTS.md](AGENTS.md) | Collaboration rules, ownership (Melanie / Moly), and demo criteria |
-| [PRD_FlowSense_FX_Last_Look.md](PRD_FlowSense_FX_Last_Look.md) | FlowSense FX last-look product PRD |
-| [TRACK_2_FlowSense_FX_Infrastructure.md](TRACK_2_FlowSense_FX_Infrastructure.md) | Track 2 SuperGrid / SuperLink infrastructure |
-| [PRD_Federated_Equity_Intelligence_Network.md](PRD_Federated_Equity_Intelligence_Network.md) | Equity-intelligence exploration PRD |
-| [SKILL_Flower_Framework_Documentation.md](SKILL_Flower_Framework_Documentation.md) | Flower SuperGrid, SuperLink, Agent, and FAB reference |
-
-## AgentApp
-
-The `agent/` package is a Flower `AgentApp` that sends a configured prompt through Flower Runtime with the OpenAI SDK, republishes streamed response events, and prints the final text.
-
-Flower Runtime supplies the SDK base URL and task token, so this app does not need provider credentials.
-
-### Requirements
-
-- Python 3.11 or 3.12
-- [uv](https://docs.astral.sh/uv/)
-
-### Setup
-
-```shell
-uv sync
-source .venv/bin/activate
+```text
+Five private desk partitions
+        │ model updates only
+        ▼
+Flower ClientApp + ServerApp (FedAvg)
+        │ approved aggregate evidence
+        ▼
+Vanna Agent → specialist typed handoffs
+        ├── LastLookAgent
+        ├── CounterpartyRiskAgent
+        ├── MarginAgent
+        └── ManipulationWatch
+                 │
+                 ▼
+GovernanceAgent → recommendation / fallback / human review
 ```
 
-### Build and run on SuperGrid
+Flower App Bundles cannot combine an `AgentApp` with a
+`ServerApp`/`ClientApp` pair, so the repository intentionally contains two
+independent Flower apps:
 
-```shell
+```text
+apps/federation/       five-desk Flower simulation and evidence export
+apps/agent/            all six typed agent roles and current AgentApp entry point
+packages/vanna-core/   reusable privacy, schemas, scoring, and governance
+scripts/               artifact handoff and deterministic live-path demo
+tests/                 privacy, federation, routing, governance, and agent tests
+```
+
+## Quick start
+
+Requires Python 3.11+ and `uv`.
+
+```bash
+uv sync
+uv run pytest -q
+uv run python scripts/local_demo.py
+```
+
+The local demo is the latency-safe path: it never waits for Flower or a model
+endpoint and can use the last approved artifact.
+
+## Run the real five-desk federation
+
+```bash
+cd apps/federation
+uv sync
+uv run flwr run . --federation-config="num-supernodes=5" --stream
+cd ../..
+uv run python scripts/sync_federation_artifact.py
+```
+
+The run performs three FedAvg rounds, prints measured loss/accuracy and round
+duration, and writes `apps/federation/artifacts/generated/provider_evidence.json`.
+The sync script copies only that approved aggregate artifact into the AgentApp.
+
+## Build and run the AgentApp
+
+Build the Flower App Bundle:
+
+```bash
+cd apps/agent
+uv sync
 uv run flwr build
+```
+
+For SuperGrid:
+
+```bash
 uv run flwr login supergrid
 uv run flwr run . supergrid --stream
 ```
 
-Override the default prompt:
+For the hackathon's local SuperLink and AMD Responses-compatible endpoint:
 
-```shell
-uv run flwr run . supergrid \
-    --run-config 'agent.input="Explain agent harness in one paragraph."' \
-    --stream
+```bash
+export FLWR_MODEL_API_ENDPOINT="<full /v1/responses endpoint>"
+export FLWR_MODEL_API_KEY="<key from the hackathon Slack>"
+export VANNA_MODEL_ID="<matching model ID>"
+uv run flower-superlink --insecure
 ```
 
-## Git workflow
+Run from another terminal using the local SuperLink connection described in
+the current Flower Agent documentation. Qwen does not require
+`FLWR_MODEL_API_KEY`; unset it before starting SuperLink when using that
+endpoint. Restart SuperLink after changing models.
 
-`main` tracks [molyleelatham/flowerhackathon](https://github.com/molyleelatham/flowerhackathon).
+The default structured order is:
 
-SuperGrid, SuperLink, and connectivity work happens on `supergrid-connectivity`. Merge that branch into `main` when a slice is ready:
-
-```shell
-git checkout supergrid-connectivity
-git pull origin supergrid-connectivity
-# ... build SuperGrid / SuperLink / connectivity ...
-git add -A && git commit && git push
+```json
+{
+  "pair": "EUR/USD",
+  "side": "BUY",
+  "size_bucket": "1m-5m",
+  "volatility": "high",
+  "available_providers": ["LP_A", "LP_B", "LP_C"]
+}
 ```
 
-Then merge via the pull request into `main`.
+Override it with `--run-config 'agent.input={...}'`.
 
-## License
+## Demo flow (3–5 minutes)
 
-Apache License 2.0. See [LICENSE](LICENSE).
+1. Show five isolated desk partitions and the privacy tests.
+2. Show LP_A's tight quote and the local-only uncertainty.
+3. Run the Flower federation and point out `raw-records-shared: 0`.
+4. Sync the aggregate artifact and run Vanna.
+5. Show LP_B winning on expected executable cost.
+6. Show LastLook flagging LP_A's conditional asymmetry as a review signal only.
+7. Show the governance result, human control, and deterministic fallback.
+
+Use only metrics printed by the actual run. This prototype does not execute
+trades, blacklist providers, coordinate desks, or replace production
+compliance systems.
+
+## Source documents
+
+- [Product requirements](PRD_FlowSense_FX_Last_Look.md)
+- [Track 2 infrastructure design](TRACK_2_FlowSense_FX_Infrastructure.md)
+- [Flower framework notes](SKILL_Flower_Framework_Documentation.md)
+
+The legacy source-document filenames predate the final name; their content,
+the implementation, and the submission name use Vanna.

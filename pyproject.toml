@@ -1,42 +1,27 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
-name = "flowerhack"
+name = "vanna-hackathon"
 version = "0.1.0"
-description = "A Flower AgentApp that sends a prompt through Flower Runtime and streams the model response."
-readme = "README.md"
-license = { file = "LICENSE" }
-authors = [{ name = "Melanie Preen" }]
+description = "Vanna: federated FX execution intelligence on Flower"
 requires-python = ">=3.11,<4.0"
-keywords = ["flower", "federated-learning", "agent", "agentapp", "openai"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+dependencies = [
+  "flwr[simulation]==1.35.0",
+  "numpy>=2.0,<3.0",
+  "openai>=2.16.0,<3.0.0",
+  "pydantic>=2.10,<3.0",
 ]
-dependencies = ["flwr>=1.35.0,<2.0", "openai>=2.16.0,<3.0.0"]
 
-[project.urls]
-Homepage = "https://github.com/melaniepreen/flowerhack"
-Issues = "https://github.com/melaniepreen/flowerhack/issues"
+[dependency-groups]
+dev = [
+  "pytest>=8.3,<10.0",
+]
 
-[tool.hatch.build.targets.wheel]
-packages = ["agent"]
+[tool.uv]
+package = false
 
-[tool.flwr.app]
-publisher = "melaniepreen"
-fab-format-version = 1
-flwr-version-target = "1.35.0"
-fab-include = ["agent/**/*.py", "LICENSE"]
-
-[tool.flwr.app.config.agent]
-input = "Explain why flowers turn toward light."
-
-[tool.flwr.app.components]
-agentapp = "agent.agent_app:app"
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [
+  "apps/agent",
+  "apps/federation",
+  "packages/vanna-core/src",
+]
