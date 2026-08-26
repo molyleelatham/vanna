@@ -1,3 +1,40 @@
+# Vanna Agent Guide
+
+Read `TECH_ARCH.md`, `HANDOVER.md`, and `README.md` before changing the project.
+
+## Project boundaries
+
+- Vanna is the product name. Do not reintroduce the former name.
+- `apps/federation` owns Flower `ServerApp`/`ClientApp` infrastructure.
+- `apps/agent` owns Vanna, LastLookAgent, CounterpartyRiskAgent, MarginAgent,
+  ManipulationWatch, and GovernanceAgent.
+- Keep these roles independently testable until the orchestrator is merged.
+- A Flower FAB can contain either an `AgentApp` or a
+  `ServerApp`/`ClientApp` pair; do not combine them.
+- Keep SuperGrid and local SuperLink runtime selection outside business logic.
+- Keep live decisions local. Federation is a background model-update path.
+
+## Safety invariants
+
+- Never share raw orders, client/account IDs, UTIs, positions, or live intent.
+- HMAC values are pseudonyms, not anonymous identities.
+- Never implement automatic execution, blacklisting, regulatory filing, or
+  collective provider instructions.
+- Preserve minimum-cohort, freshness, confidence, fallback, and human-review
+  controls.
+- Treat last-look asymmetry as a review signal, not proof of misconduct.
+
+## Contribution protocol
+
+- Keep numerical routing and governance deterministic; use models to explain.
+- Validate structured inputs and handoffs with strict schemas.
+- Bound model/tool loops and handle endpoint failure with a local fallback.
+- Add or update tests for every behavior change.
+- Run `uv run pytest -q` and build each affected FAB before handover.
+- Update `TECH_ARCH.md` when interfaces or data flow change.
+- Update `HANDOVER.md` after each meaningful contribution with completed work,
+  verification results, open risks, and the next integration step.
+- Never commit credentials, local Flower tokens, or model API keys.
 # Agent Guide
 
 ## Start with context

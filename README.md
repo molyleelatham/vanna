@@ -5,10 +5,11 @@ the 2026 Cambridge Collaborative Agent Hackathon. It demonstrates that the
 tightest displayed quote is not always the best executable quote.
 
 Five simulated desks train on private execution histories. Flower aggregates
-their model updates, while a bounded Vanna → LastLook AgentApp turns approved
-aggregate evidence into an explainable, human-controlled local recommendation.
-Raw orders, client identities, UTIs, and live intentions never enter the shared
-payload.
+their model updates. Six typed agent roles cover execution value, last look,
+counterparty reliability, margin pressure, manipulation signals, and
+governance. The current bounded Vanna → LastLook runtime remains in place until
+the final orchestrator merge. Raw orders, client identities, UTIs, and live
+intentions never enter the shared payload.
 
 ## Architecture
 
@@ -19,10 +20,14 @@ Five private desk partitions
 Flower ClientApp + ServerApp (FedAvg)
         │ approved aggregate evidence
         ▼
-Vanna Agent → typed handoff → LastLook Agent
-        │
-        ▼
-Governance → local recommendation / fallback / human review
+Vanna Agent → specialist typed handoffs
+        ├── LastLookAgent
+        ├── CounterpartyRiskAgent
+        ├── MarginAgent
+        └── ManipulationWatch
+                 │
+                 ▼
+GovernanceAgent → recommendation / fallback / human review
 ```
 
 Flower App Bundles cannot combine an `AgentApp` with a
@@ -31,7 +36,7 @@ independent Flower apps:
 
 ```text
 apps/federation/       five-desk Flower simulation and evidence export
-apps/agent/            collaborative Vanna and LastLook AgentApp
+apps/agent/            all six typed agent roles and current AgentApp entry point
 packages/vanna-core/   reusable privacy, schemas, scoring, and governance
 scripts/               artifact handoff and deterministic live-path demo
 tests/                 privacy, federation, routing, governance, and agent tests
