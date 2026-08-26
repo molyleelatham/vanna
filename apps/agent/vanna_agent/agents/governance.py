@@ -82,3 +82,10 @@ class GovernanceAgent:
             action="ALLOW_LOCAL_RECOMMENDATION",
             reasons=["all privacy, cohort, freshness, and agent controls passed"],
         )
+
+    def explain(self, assessment: GovernanceAssessment) -> str:
+        """Deterministic narration of the final governance decision."""
+        return (
+            f"Final decision {assessment.action}: {'; '.join(assessment.reasons)}. "
+            "No automatic execution, blacklist, or collective instruction."
+        )

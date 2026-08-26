@@ -59,3 +59,12 @@ class MarginAgent:
             human_review_required=pressure == "high",
             factors=factors,
         )
+
+    def explain(self, assessment: MarginAssessment) -> str:
+        """Deterministic narration of margin pressure; advisory only."""
+        return (
+            f"Margin pressure {assessment.pressure}; recommended size multiplier "
+            f"{assessment.recommended_size_multiplier:.2f}; human review: "
+            f"{'yes' if assessment.human_review_required else 'no'}. "
+            f"Factors: {', '.join(assessment.factors)}. No automatic liquidation."
+        )

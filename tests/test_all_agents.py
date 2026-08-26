@@ -161,3 +161,90 @@ def test_governance_suppresses_collective_routing_output() -> None:
     assert decision.collective_instruction is False
     assert decision.automatic_blacklist is False
     assert decision.automatic_execution is False
+
+
+def test_explain_methods_narrate_their_own_assessments() -> None:
+    order, evidence, recommendation = scenario()
+
+    vanna_text = VannaAgent().explain(recommendation)
+    assert "LP_B" in vanna_text
+    assert f"{recommendation.expected_cost_bps:.2f} bps" in vanna_text
+
+    last_look = LastLookAgent().assess(order, evidence)
+    last_look_text = LastLookAgent().explain(last_look)
+    assert "LP_A" in last_look_text
+    assert "review required: yes" in last_look_text
+
+    counterparty = CounterpartyRiskAgent().assess(recommendation, evidence)
+    counterparty_text = CounterpartyRiskAgent().explain(counterparty)
+    assert str(counterparty.reliability_score) in counterparty_text
+    assert counterparty.route_posture in counterparty_text
+    assert "no automatic exclusion" in counterparty_text
+
+    margin = MarginAgent().assess(
+        MarginContext(
+            pair="EUR/USD",
+            volatility="high",
+            margin_utilization=0.92,
+            leverage_ratio=24,
+            correlated_exposure=0.86,
+            settlement_pressure=0.81,
+        )
+    )
+    margin_text = MarginAgent().explain(margin)
+    assert "high" in margin_text
+    assert "0.50" in margin_text
+    assert "No automatic liquidation" in margin_text
+
+    manipulation = ManipulationWatch().assess(
+        MarketPatternContext(
+            provider="LP_A",
+            quote_to_trade_ratio=48,
+            cancellation_rate=0.94,
+            synchronized_quote_score=0.86,
+            cross_pair_anomaly_score=0.79,
+            pre_movement_activity_score=0.88,
+            sample_count=500,
+        )
+    )
+    manipulation_text = ManipulationWatch().explain(manipulation)
+    assert "review" in manipulation_text
+    assert "not a misconduct finding" in manipulation_text
+
+    governance = GovernanceAgent().assess(
+        GovernanceContext(
+            recommendation=recommendation,
+            last_look=last_look,
+            counterparty_risk=counterparty,
+            margin=margin,
+            manipulation=manipulation,
+            cohort_size=5,
+            synchronized_routing_ratio=0.0,
+        )
+    )
+    governance_text = GovernanceAgent().explain(governance)
+    assert governance.action in governance_text
+    assert "No automatic execution, blacklist, or collective instruction" in governance_text
+
+
+def test_orchestrator_collects_contributions_in_handoff_order() -> None:
+    order, evidence, _ = scenario()
+    result = OrchestratorAgent().assess(
+        order,
+        evidence,
+        now=datetime(2026, 8, 26, 11, 35, tzinfo=UTC),
+    )
+    contributions = result["contributions"]
+    assert [c.agent for c in contributions] == [
+        "Vanna",
+        "LastLookAgent",
+        "CounterpartyRiskAgent",
+        "MarginAgent",
+        "ManipulationWatch",
+        "GovernanceAgent",
+    ]
+    for contribution in contributions:
+        assert contribution.summary
+        assert contribution.assessment
+    # Governance contribution carries the final decision payload
+    assert contributions[-1].assessment["action"] == result["governance"].action

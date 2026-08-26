@@ -7,6 +7,7 @@ from typing import Any
 
 from ..connectors import ConnectorClient
 from .contracts import (
+    AgentContribution,
     CounterpartyRiskAssessment,
     GovernanceAssessment,
     GovernanceContext,
@@ -82,6 +83,40 @@ class OrchestratorAgent:
         )
         governance = self.governance.assess(governance_context, connectors=self.connectors)
 
+        # Per-agent visible contributions, in handoff order, for streaming/narration
+        contributions = [
+            AgentContribution(
+                agent=self.vanna.name,
+                summary=self.vanna.explain(recommendation),
+                assessment=recommendation.model_dump(mode="json"),
+            ),
+            AgentContribution(
+                agent=self.last_look.name,
+                summary=self.last_look.explain(last_look),
+                assessment=last_look.model_dump(mode="json"),
+            ),
+            AgentContribution(
+                agent=self.counterparty_risk.name,
+                summary=self.counterparty_risk.explain(counterparty_risk),
+                assessment=counterparty_risk.model_dump(mode="json"),
+            ),
+            AgentContribution(
+                agent=self.margin.name,
+                summary=self.margin.explain(margin),
+                assessment=margin.model_dump(mode="json"),
+            ),
+            AgentContribution(
+                agent=self.manipulation_watch.name,
+                summary=self.manipulation_watch.explain(manipulation),
+                assessment=manipulation.model_dump(mode="json"),
+            ),
+            AgentContribution(
+                agent=self.governance.name,
+                summary=self.governance.explain(governance),
+                assessment=governance.model_dump(mode="json"),
+            ),
+        ]
+
         return {
             "recommendation": recommendation,
             "last_look": last_look,
@@ -89,6 +124,7 @@ class OrchestratorAgent:
             "margin": margin,
             "manipulation": manipulation,
             "governance": governance,
+            "contributions": contributions,
         }
 
     def _build_margin_context(self, order: OrderRequest, now: datetime) -> MarginContext:

@@ -51,6 +51,16 @@ class VannaAgent:
             return recommend(order, live_evidence, now=now)
         return base_recommendation
 
+    def explain(self, recommendation: Recommendation) -> str:
+        """Deterministic narration of the ranking; numbers come from the assessment."""
+        return (
+            f"Ranked {recommendation.provider} first at an estimated "
+            f"{recommendation.expected_cost_bps:.2f} bps executable cost "
+            f"(fill probability {recommendation.expected_fill_probability:.1%}, "
+            f"confidence {recommendation.confidence}, model {recommendation.model_version}). "
+            f"{recommendation.reason}"
+        )
+
     def _blend_evidence(self, static: ProviderEvidence, live: ExecutionHistory) -> ProviderEvidence:
         """Blend federation evidence (static) with live connector data.
         Weight: 70% federation (larger sample), 30% live (more current).

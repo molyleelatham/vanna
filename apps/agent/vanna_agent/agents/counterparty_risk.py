@@ -87,3 +87,12 @@ class CounterpartyRiskAgent:
                 f"conditional rejection asymmetry {item.rejection_asymmetry:.3f}",
             ],
         )
+
+    def explain(self, assessment: CounterpartyRiskAssessment) -> str:
+        """Deterministic narration of the reliability posture; never an exclusion."""
+        return (
+            f"{assessment.provider} reliability {assessment.reliability_score:.4f} "
+            f"({assessment.confidence} confidence) -> route posture "
+            f"{assessment.route_posture}. Factors: {', '.join(assessment.factors)}. "
+            "Advisory only — no automatic exclusion."
+        )

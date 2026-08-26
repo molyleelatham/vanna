@@ -74,6 +74,7 @@ def run_pipeline(
         "margin": assessments["margin"].model_dump(mode="json"),
         "manipulation": assessments["manipulation"].model_dump(mode="json"),
         "governance": assessments["governance"].model_dump(mode="json"),
+        "contributions": [c.model_dump(mode="json") for c in assessments["contributions"]],
         "privacy": {
             "raw_records_shared": int(payload["raw_records_shared"]),
             "client_identities_shared": int(payload["client_identities_shared"]),
@@ -82,26 +83,32 @@ def run_pipeline(
 
 
 def deterministic_answer(result: dict[str, Any], failure: str | None = None) -> str:
-    rec = result["vanna_recommendation"]
-    ll = result["last_look_signal"]
-    gov = result["governance"]
-    cp = result.get("counterparty_risk", {})
-    mg = result.get("margin", {})
-    mp = result.get("manipulation", {})
-
     chain = " -> ".join(result.get("handoff_chain", HANDOFF_CHAIN))
-    lines = [
-        f"Handoff: {chain}",
-        f"Vanna recommends {rec['provider']} at an estimated "
-        f"{rec['expected_cost_bps']:.2f} bps executable cost.",
-        rec["reason"],
-        f"LastLook: {ll['explanation']}",
-        f"CounterpartyRisk: {cp.get('route_posture', 'N/A')} (reliability {cp.get('reliability_score', 'N/A')})",
-        f"Margin: {mg.get('pressure', 'N/A')} pressure (size multiplier {mg.get('recommended_size_multiplier', 'N/A')})",
-        f"ManipulationWatch: {mp.get('signal', 'N/A')} (anomaly {mp.get('anomaly_score', 'N/A')})",
-        f"Governance: {gov['action']} — {', '.join(gov.get('reasons', ['no reasons']))} (no auto-execution or blacklist).",
-        "Privacy: 0 raw records and 0 client identities shared.",
-    ]
+    lines = [f"Handoff: {chain}"]
+
+    contributions = result.get("contributions") or []
+    if contributions:
+        # One visible line per agent, in handoff order
+        lines.extend(f"{c['agent']}: {c['summary']}" for c in contributions)
+    else:
+        # Legacy rendering for results built without contributions
+        rec = result["vanna_recommendation"]
+        ll = result["last_look_signal"]
+        gov = result["governance"]
+        cp = result.get("counterparty_risk", {})
+        mg = result.get("margin", {})
+        mp = result.get("manipulation", {})
+        lines += [
+            f"Vanna recommends {rec['provider']} at an estimated "
+            f"{rec['expected_cost_bps']:.2f} bps executable cost.",
+            rec["reason"],
+            f"LastLook: {ll['explanation']}",
+            f"CounterpartyRisk: {cp.get('route_posture', 'N/A')} (reliability {cp.get('reliability_score', 'N/A')})",
+            f"Margin: {mg.get('pressure', 'N/A')} pressure (size multiplier {mg.get('recommended_size_multiplier', 'N/A')})",
+            f"ManipulationWatch: {mp.get('signal', 'N/A')} (anomaly {mp.get('anomaly_score', 'N/A')})",
+            f"Governance: {gov['action']} — {', '.join(gov.get('reasons', ['no reasons']))} (no auto-execution or blacklist).",
+        ]
+    lines.append("Privacy: 0 raw records and 0 client identities shared.")
     if failure:
         lines.append(f"Model narration unavailable; deterministic fallback used: {failure}")
     return "\n".join(lines)

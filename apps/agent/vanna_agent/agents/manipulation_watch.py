@@ -71,3 +71,13 @@ class ManipulationWatch:
             human_review_required=signal == "review",
             factors=factors,
         )
+
+    def explain(self, assessment: ManipulationAssessment) -> str:
+        """Deterministic narration of the surveillance signal; never a misconduct finding."""
+        return (
+            f"{assessment.provider} surveillance signal {assessment.signal} "
+            f"(anomaly score {assessment.anomaly_score:.2f}); human review: "
+            f"{'yes' if assessment.human_review_required else 'no'}. "
+            f"Factors: {', '.join(assessment.factors)}. "
+            "Review signal only — not a misconduct finding."
+        )

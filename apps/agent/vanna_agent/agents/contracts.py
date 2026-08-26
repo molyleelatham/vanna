@@ -92,5 +92,17 @@ class GovernanceAssessment(StrictModel):
     collective_instruction: Literal[False] = False
 
 
+class AgentContribution(StrictModel):
+    """One agent's visible contribution to the collaborative decision.
+
+    Carries the deterministic narration plus the typed assessment payload so
+    the orchestrator, AgentApp, and any LLM narrator all read the same handoff.
+    """
+
+    agent: str
+    summary: str
+    assessment: dict
+
+
 class AgentBundleInput(StrictModel):
     order: OrderRequest

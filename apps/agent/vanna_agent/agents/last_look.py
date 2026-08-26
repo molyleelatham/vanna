@@ -52,3 +52,11 @@ class LastLookAgent:
             return LastLookAssessment.model_validate(last_look_signal(blended_item))
         except Exception:
             return LastLookAssessment.model_validate(last_look_signal(displayed_quote_leader))
+
+    def explain(self, assessment: LastLookAssessment) -> str:
+        """Deterministic narration of the last-look review signal."""
+        return (
+            f"{assessment.provider} conditional rejection asymmetry is {assessment.level} "
+            f"({assessment.rejection_asymmetry:+.3f}); review required: "
+            f"{'yes' if assessment.review_required else 'no'}. {assessment.explanation}"
+        )
