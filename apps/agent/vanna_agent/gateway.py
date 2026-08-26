@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import re
+import socket
 import subprocess
 import threading
 from dataclasses import dataclass
@@ -76,6 +77,14 @@ def parse_decision_event(stream_output: str, request_id: str) -> dict[str, Any] 
     """Find the request-scoped custom AgentApp event in Flower CLI output."""
     decoder = json.JSONDecoder()
     cleaned = _strip_terminal_codes(stream_output)
+    for line in cleaned.splitlines():
+        if line.startswith("VANNA_TERMINAL_EVENT="):
+            try:
+                event = json.loads(line.removeprefix("VANNA_TERMINAL_EVENT="))
+            except json.JSONDecodeError:
+                continue
+            if event.get("request_id") == request_id and event.get("type") == "vanna.decision":
+                return event
     for index, char in enumerate(cleaned):
         if char != "{":
             continue
@@ -243,6 +252,21 @@ class GatewayService:
     def decision_status(self, request_id: str) -> dict[str, Any]:
         return self.runs.status(request_id)
 
+    def connectivity(self) -> dict[str, Any]:
+        """Report the local handoff links without exposing runtime credentials."""
+        try:
+            with socket.create_connection(("127.0.0.1", 9093), timeout=0.5):
+                superlink_status = "reachable"
+        except OSError:
+            superlink_status = "unreachable"
+        return {
+            "gateway": "reachable",
+            "superlink": superlink_status,
+            "superlink_endpoint": "127.0.0.1:9093",
+            "agentapp_mode": "on-demand Flower run",
+            "data_boundary": "approved aggregate evidence only",
+        }
+
     def queue_for_human_approval(self, payload: object) -> dict[str, Any]:
         if not isinstance(payload, dict) or payload.get("operator_acknowledged") is not True:
             raise GatewayError("operator acknowledgement is required")
@@ -319,6 +343,8 @@ def make_handler(service: GatewayService) -> type[BaseHTTPRequestHandler]:
                 if parsed.path == "/api/quote":
                     pair = parse_qs(parsed.query).get("pair", ["EUR/USD"])[0]
                     self._send(HTTPStatus.OK, service.quote(pair))
+                elif parsed.path == "/api/connectivity":
+                    self._send(HTTPStatus.OK, service.connectivity())
                 elif parsed.path.startswith("/api/decisions/"):
                     request_id = parsed.path.removeprefix("/api/decisions/")
                     self._send(HTTPStatus.OK, service.decision_status(request_id))

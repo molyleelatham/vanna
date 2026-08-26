@@ -86,14 +86,15 @@ Location: `apps/dashboard`
 - A standalone React/Vite terminal pairs with a localhost-only Python gateway
   (`vanna_agent.gateway`) for the 3–5 minute demo.
 - The gateway accepts only the strict, bucketed `OrderRequest`, retrieves a
-  public Alpha Vantage quote with an explicit local fallback, and invokes the
-  deterministic AgentApp domain path against approved evidence.
+  public Alpha Vantage quote with an explicit local fallback, and submits a
+  real `flwr run ... local-superlink` AgentApp job. It returns only the
+  request-scoped terminal-safe result emitted by that Flower job.
 - The terminal can create a local `PENDING_HUMAN_APPROVAL` audit record only.
   It cannot send broker/OMS orders, automatically execute, blacklist, or
   coordinate providers.
-- A SuperLink or SuperGrid AgentApp run remains a separate Flower runtime
-  demonstration. The terminal labels this separation instead of claiming a
-  direct browser-to-SuperLink control path.
+- The terminal submits to local SuperLink through its localhost gateway; the
+  browser never directly controls SuperLink. SuperGrid remains a separate
+  deployment demonstration.
 
 ## Runtime targets
 

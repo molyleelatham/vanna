@@ -159,7 +159,7 @@ def persist_result(context: Context, result: dict[str, Any], answer: str, connec
 def terminal_request_id(context: Context) -> str | None:
     """Return a validated browser-to-AgentApp correlation ID, when supplied."""
     value = context.run_config.get("terminal.request-id")
-    if value is None:
+    if value is None or value == "":
         return None
     if not isinstance(value, str):
         raise ValueError("terminal.request-id must be a UUID string")
@@ -187,6 +187,10 @@ def emit_terminal_decision(
     if result is not None:
         event["result"] = result
     agent.events.emit(event)
+    # The current Flower CLI log stream does not render custom structured
+    # events. Mirror this terminal-safe event as a correlation-tagged log line
+    # so the localhost gateway can return the result of this actual AgentApp run.
+    print(f"VANNA_TERMINAL_EVENT={json.dumps(event, sort_keys=True)}", flush=True)
 
 
 @app.main()
@@ -216,6 +220,19 @@ def main(agent: AgentSession, context: Context) -> None:
         print(answer)
         return
 
+    # Add the genuine one-desk versus five-desk comparison before emitting the
+    # terminal result. Unavailable artifacts degrade this panel, not the run.
+    try:
+        result["model_comparison"] = [
+            comparison.__dict__
+            for comparison in build_model_comparison(
+                pair=result["order_context"]["pair"],
+                providers=result["order_context"]["available_providers"],
+            )
+        ]
+    except Exception as exc:
+        result["model_comparison"] = {"unavailable": str(exc)}
+
     # Emit the typed deterministic result before optional model narration. This
     # lets a local terminal consume a real AgentApp run even if narration fails.
     emit_terminal_decision(agent, request_id, status="completed", result=result)
@@ -235,16 +252,7 @@ def main(agent: AgentSession, context: Context) -> None:
             timeout=MODEL_TIMEOUT_SECONDS,
         )
 
-        # Include genuine local-only vs federated comparison in initial context.
-        # Unavailable artifacts degrade the section, not the run.
-        try:
-            model_comparison = build_model_comparison(
-                pair=result["order_context"]["pair"],
-                providers=result["order_context"]["available_providers"],
-            )
-            comparison_data: Any = [c.__dict__ for c in model_comparison]
-        except Exception as exc:
-            comparison_data = {"unavailable": str(exc)}
+        comparison_data: Any = result["model_comparison"]
         
         messages = [
             {

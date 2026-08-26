@@ -74,6 +74,16 @@ def test_gateway_returns_public_quote_fallback_without_key(tmp_path) -> None:
     assert {"bid", "ask", "timestamp"}.issubset(quote)
 
 
+def test_gateway_reports_local_connectivity_without_credentials(tmp_path) -> None:
+    gateway = GatewayService(approval_path=tmp_path / "queue.jsonl")
+
+    connectivity = gateway.connectivity()
+
+    assert connectivity["gateway"] == "reachable"
+    assert connectivity["superlink"] in {"reachable", "unreachable"}
+    assert connectivity["data_boundary"] == "approved aggregate evidence only"
+
+
 def test_gateway_rejects_non_bucketed_or_extra_order_fields(tmp_path) -> None:
     runs = SuperLinkRunManager(runner=completed_runner)
     gateway = GatewayService(approval_path=tmp_path / "queue.jsonl", runs=runs)
@@ -85,7 +95,7 @@ def test_gateway_rejects_non_bucketed_or_extra_order_fields(tmp_path) -> None:
 def test_superlink_event_parser_scopes_result_to_request() -> None:
     event = parse_decision_event(
         '{"type":"vanna.decision","request_id":"wrong","status":"completed"}'
-        '\n{"event":{"type":"vanna.decision","request_id":"right","status":"completed","result":{}}}',
+        '\nVANNA_TERMINAL_EVENT={"type":"vanna.decision","request_id":"right","status":"completed","result":{}}',
         "right",
     )
 

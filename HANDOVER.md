@@ -28,9 +28,10 @@ The core Flower infrastructure is working, and SuperGrid is live end-to-end.
 - Deterministic live-path demo: working (full 6-agent chain)
 - **Trading terminal:** `apps/dashboard` is a minimal React/Vite order-ticket
   experience. Its localhost-only `vanna_agent.gateway` can show a public Alpha
-  Vantage quote, assess a strict bucketed order through the deterministic
-  AgentApp domain path, and write a local human-approval record. It has no
-  broker/OMS execution path and remains separate from both Flower FABs.
+  Vantage quote, submit a strict bucketed order through a real local-SuperLink
+  AgentApp run, and write a local human-approval record after that Flower
+  result completes. It has no broker/OMS execution path and remains separate
+  from both Flower FABs.
 
 The completed federation run executed three FedAvg rounds across five clients
 in 12.81 seconds. Centralised evaluation loss moved from `0.6931` to `0.6646`.

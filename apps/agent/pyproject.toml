@@ -35,5 +35,8 @@ model-id = ""
 [tool.flwr.app.config.agent]
 input = '{"pair":"EUR/USD","side":"BUY","size_bucket":"1m-5m","volatility":"high","available_providers":["LP_A","LP_B","LP_C"]}'
 
+[tool.flwr.app.config.terminal]
+request-id = ""
+
 [tool.flwr.app.components]
 agentapp = "vanna_agent.agent_app:app"

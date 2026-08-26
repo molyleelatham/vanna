@@ -78,6 +78,12 @@ def test_terminal_request_id_rejects_malformed_value() -> None:
         terminal_request_id(context)
 
 
+def test_terminal_request_id_allows_default_empty_config() -> None:
+    context = SimpleNamespace(run_config={"terminal.request-id": ""})
+
+    assert terminal_request_id(context) is None
+
+
 def test_contributions_render_one_line_per_agent_in_handoff_order() -> None:
     result = run_pipeline(
         json.dumps(

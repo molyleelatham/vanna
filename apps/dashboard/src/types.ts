@@ -23,6 +23,17 @@ export type Contribution = {
   summary: string;
 };
 
+export type ModelComparison = {
+  pair: string;
+  provider: string;
+  federated_fill_prob: number;
+  local_only_fill_prob: number;
+  federated_logloss_held_out: number;
+  local_only_logloss_held_out: number;
+  model_agreement: boolean;
+  federated_feature_importance: Record<string, number>;
+};
+
 export type PipelineResult = {
   order_context: {
     pair: string;
@@ -49,6 +60,32 @@ export type PipelineResult = {
     misconduct_finding: false;
   };
   contributions: Contribution[];
+  model_comparison?: ModelComparison[] | { unavailable: string };
+  last_look_signal?: {
+    provider: string;
+    rejection_asymmetry: number;
+    level: string;
+    review_required: boolean;
+    explanation: string;
+  };
+  counterparty_risk?: {
+    provider: string;
+    reliability_score: number;
+    route_posture: string;
+    factors: string[];
+  };
+  margin?: {
+    pressure: string;
+    recommended_size_multiplier: number;
+    human_review_required: boolean;
+    factors: string[];
+  };
+  manipulation?: {
+    provider: string;
+    signal: string;
+    anomaly_score: number;
+    human_review_required: boolean;
+  };
   privacy: {
     raw_records_shared: number;
     client_identities_shared: number;

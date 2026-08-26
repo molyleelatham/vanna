@@ -19,6 +19,14 @@ export type DecisionJob = {
   error?: string;
 };
 
+export type Connectivity = {
+  gateway: "reachable";
+  superlink: "reachable" | "unreachable";
+  superlink_endpoint: string;
+  agentapp_mode: string;
+  data_boundary: string;
+};
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${gatewayOrigin}${path}`, {
     headers: { "Content-Type": "application/json", ...options?.headers },
@@ -31,6 +39,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export function getQuote(pair: string) {
   return request<Quote>(`/api/quote?pair=${encodeURIComponent(pair)}`);
+}
+
+export function getConnectivity() {
+  return request<Connectivity>("/api/connectivity");
 }
 
 export function assessOrder(order: PipelineResult["order_context"]) {

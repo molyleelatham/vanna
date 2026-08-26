@@ -60,25 +60,30 @@ endpoint and can use the last approved artifact.
 
 The dashboard is a terminal-style React application; it does not sit in either
 Flower FAB. A localhost-only gateway retrieves a public Alpha Vantage FX quote
-when configured and invokes the deterministic AgentApp domain path against the
-approved evidence artifact.
+when configured, then submits each ticket as a real local-SuperLink AgentApp
+run and waits for its request-scoped structured decision event.
 
 ```bash
-# Terminal 1: optional public FX quote source (never commit this value)
+# Terminal 1: start the local Flower runtime
+export FLWR_MODEL_API_ENDPOINT="<full /v1/responses endpoint>"
+uv run flower-superlink --insecure
+
+# Terminal 2: optional public FX quote source (never commit this value)
 export ALPHAVANTAGE_API_KEY="<key>"
 
-# Terminal 2: local gateway (port 8010; port 8000 belongs to SuperLink)
+# Terminal 3: local gateway (port 8010; port 8000 belongs to SuperLink)
 cd apps/agent
 uv run python -m vanna_agent.gateway
 
-# Terminal 3: browser UI (port 5173)
+# Terminal 4: browser UI (port 5173)
 cd apps/dashboard
 npm install
 npm run dev
 ```
 
 The ticket accepts only pair, side, size bucket, volatility, and available
-providers. `Assess order` returns a deterministic, governed recommendation;
+providers. `Assess order` queues a real Flower AgentApp run on local SuperLink;
+the UI polls its result instead of falling back to an in-process pipeline.
 `Send to approval queue` writes a local non-executable audit record. It never
 sends a broker/OMS order. Without an Alpha Vantage key or when the provider
 fails, the quote strip labels its safe local fallback.
