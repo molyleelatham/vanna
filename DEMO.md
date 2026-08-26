@@ -121,6 +121,42 @@ A Flower FAB cannot combine an `AgentApp` with a `ServerApp`/`ClientApp` pair,
 so the repo is deliberately two FABs joined by one typed artifact. That
 artifact *is* the collaboration boundary.
 
+## Why Flower was necessary — drilled into the architecture
+
+Every hard requirement maps to a Flower primitive that would be a project in
+itself to rebuild:
+
+1. **"Train on data that can't move" → deployment runtime.** The ClientApp
+   executes *on the desk's machine* (SuperNode); only serialized model bytes
+   travel. Compute goes to the data because the data can never leave.
+2. **"Five competitors, one shared model" → federation + strategy.**
+   SuperLink coordinates, `FedXgbBagging` runs the aggregation loop, and
+   federation membership (`register` + `add-supernode`) is the trust
+   boundary — only registered keys can join a round.
+3. **"Prove the nodes are who they say" → EC-key node auth.** Each SuperNode
+   authenticates with its registered P-384 key, so a malicious "desk" cannot
+   inject poisoned updates.
+4. **"The agent chain is a managed workload" → AgentApp + SuperExec.**
+   `Context` state persisted under lock (audit), `run-config` order input,
+   `agent.events.emit` streaming to the UI, rate-limited typed connector
+   calls, and an isolated `uv sync`'d runtime per run.
+5. **"FL and agents can't live in one bundle" → the FAB boundary.** Flower
+   forbids combining the two app kinds in one FAB — a constraint that forced
+   the cleanest decision in the repo: two FABs joined by one typed,
+   privacy-validated artifact.
+6. **"The server shouldn't see individual updates" → SecAgg+.** Masked
+   summation with key exchange, share splitting, and reconstruction
+   thresholds — audited cryptography, not home-grown crypto.
+7. **"The demo must survive failure" → simulation runtime + run lifecycle.**
+   The same FABs run locally (`num-supernodes=5`) with zero infrastructure,
+   and every run has an ID, streamed logs, and status for verification.
+
+**The counterfactual:** without Flower, Vanna is a message queue, an auth
+system, a job orchestrator, a secure-aggregation protocol, a packaging format,
+and an agent runtime — six infrastructure projects before the first agent
+exists. With Flower, the hackathon hours went into the part that is actually
+novel: the collaboration boundary and the governed agent chain.
+
 ## Privacy and federation
 
 The privacy boundary is structural — enforced in code at three layers:
