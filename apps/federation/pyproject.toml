@@ -29,6 +29,5 @@ clientapp = "vanna_federation.client_app:app"
 
 [tool.flwr.app.config]
 num-server-rounds = 3
-local-epochs = 4
-learning-rate = 0.15
+local-trees = 1
 fraction-evaluate = 1.0
