@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from flwr.serverapp.strategy import FedAvg
 
 from .data import global_test_data
 from .model import accuracy, binary_cross_entropy, initial_parameters, predict_probability
+from .privacy import validate_shared_payload
 
 app = ServerApp()
 
@@ -63,21 +65,16 @@ def export_approved_evidence(parameters: list[np.ndarray]) -> Path:
                 "generated_at": generated_at,
             }
         )
+    payload = {
+        "cohort_size": 5,
+        "raw_records_shared": 0,
+        "client_identities_shared": 0,
+        "providers": providers,
+    }
+    validate_shared_payload(payload)
     output = Path("artifacts/generated/provider_evidence.json")
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
-        json.dumps(
-            {
-                "cohort_size": 5,
-                "raw_records_shared": 0,
-                "client_identities_shared": 0,
-                "providers": providers,
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return output
 
 
@@ -90,6 +87,7 @@ def main(grid: Grid, context: Context) -> None:
         min_evaluate_nodes=5,
         min_available_nodes=5,
     )
+    started = time.perf_counter()
     result = strategy.start(
         grid=grid,
         initial_arrays=ArrayRecord(initial_parameters()),
@@ -99,7 +97,15 @@ def main(grid: Grid, context: Context) -> None:
         num_rounds=int(context.run_config["num-server-rounds"]),
         evaluate_fn=global_evaluate,
     )
-    output = export_approved_evidence(result.arrays.to_numpy_ndarrays())
+    duration_s = time.perf_counter() - started
+    arrays = result.arrays.to_numpy_ndarrays()
+    payload_bytes = int(sum(array.nbytes for array in arrays))
+    output = export_approved_evidence(arrays)
     print(f"Approved aggregate evidence written to {output}")
+    print(f"Federated desks: 5")
+    print(f"Federated rounds: {int(context.run_config['num-server-rounds'])}")
+    print(f"Round duration: {duration_s:.2f}s")
+    print(f"Aggregated model bytes: {payload_bytes}")
+    print("Validation placeholder: centralized_loss / centralized_accuracy")
     print("Raw orders shared: 0")
     print("Client identities shared: 0")

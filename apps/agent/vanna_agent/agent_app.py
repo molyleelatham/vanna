@@ -11,7 +11,7 @@ from flwr.agentapp import AgentApp, AgentSession
 from flwr.app import ConfigRecord, Context
 from openai import OpenAI
 
-from .agents import OrchestratorAgent
+from .agents import HANDOFF_CHAIN, OrchestratorAgent
 from .domain import OrderRequest, ProviderEvidence
 
 MODEL = os.getenv("VANNA_MODEL_ID", "glm-5.2-fp8")
@@ -52,10 +52,13 @@ def run_pipeline(prompt: str, path: Path = EVIDENCE_PATH) -> dict[str, Any]:
     evidence = [ProviderEvidence.model_validate(item) for item in payload["providers"]]
 
     orchestrator = OrchestratorAgent()
-    assessments = orchestrator.assess(order, evidence)
+    # Score against artifact time so a checked-in JSON is not treated as stale.
+    artifact_time = evidence[0].generated_at if evidence else None
+    assessments = orchestrator.assess(order, evidence, now=artifact_time)
 
     return {
         "order_context": order.model_dump(mode="json"),
+        "handoff_chain": list(HANDOFF_CHAIN),
         "vanna_recommendation": assessments["recommendation"].model_dump(mode="json"),
         "last_look_signal": assessments["last_look"].model_dump(mode="json"),
         "counterparty_risk": assessments["counterparty_risk"].model_dump(mode="json"),
@@ -66,6 +69,7 @@ def run_pipeline(prompt: str, path: Path = EVIDENCE_PATH) -> dict[str, Any]:
             "raw_records_shared": int(payload["raw_records_shared"]),
             "client_identities_shared": int(payload["client_identities_shared"]),
         },
+        "live_path": "local-non-blocking",
     }
 
 
@@ -77,9 +81,10 @@ def deterministic_answer(result: dict[str, Any], failure: str | None = None) -> 
     mg = result.get("margin", {})
     mp = result.get("manipulation", {})
 
+    chain = " -> ".join(result.get("handoff_chain", HANDOFF_CHAIN))
     lines = [
-        f"Vanna recommends {rec['provider']} at an estimated "
-        f"{rec['expected_cost_bps']:.2f} bps executable cost.",
+        f"Handoff: {chain}",
+        f"Recommendation: {rec['provider']} at {rec['expected_cost_bps']:.2f} bps executable cost.",
         rec["reason"],
         f"LastLook: {ll['explanation']}",
         f"CounterpartyRisk: {cp.get('route_posture', 'N/A')} (reliability {cp.get('reliability_score', 'N/A')})",
@@ -87,6 +92,7 @@ def deterministic_answer(result: dict[str, Any], failure: str | None = None) -> 
         f"ManipulationWatch: {mp.get('signal', 'N/A')} (anomaly {mp.get('anomaly_score', 'N/A')})",
         f"Governance: {gov['action']} — {', '.join(gov.get('reasons', ['no reasons']))} (no auto-execution or blacklist).",
         "Privacy: 0 raw records and 0 client identities shared.",
+        "Live path: local, non-blocking (no SuperGrid wait).",
     ]
     if failure:
         lines.append(f"Model narration unavailable; deterministic fallback used: {failure}")

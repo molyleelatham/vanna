@@ -2,6 +2,7 @@
 
 from .counterparty_risk import CounterpartyRiskAgent
 from .governance import GovernanceAgent
+from .interfaces import HANDOFF_CHAIN
 from .last_look import LastLookAgent
 from .manipulation_watch import ManipulationWatch
 from .margin import MarginAgent
@@ -23,6 +24,7 @@ AGENT_REGISTRY = {
 
 __all__ = [
     "AGENT_REGISTRY",
+    "HANDOFF_CHAIN",
     "CounterpartyRiskAgent",
     "GovernanceAgent",
     "LastLookAgent",

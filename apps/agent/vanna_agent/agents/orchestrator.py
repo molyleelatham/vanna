@@ -17,6 +17,14 @@ from .contracts import (
 )
 from .counterparty_risk import CounterpartyRiskAgent
 from .governance import GovernanceAgent
+from .interfaces import (
+    CounterpartyRiskLike,
+    GovernanceLike,
+    LastLookLike,
+    ManipulationWatchLike,
+    MarginLike,
+    VannaLike,
+)
 from .last_look import LastLookAgent
 from .manipulation_watch import ManipulationWatch
 from .margin import MarginAgent
@@ -28,12 +36,14 @@ class OrchestratorAgent:
     name = "OrchestratorAgent"
 
     def __init__(self) -> None:
-        self.vanna = VannaAgent()
-        self.last_look = LastLookAgent()
-        self.counterparty_risk = CounterpartyRiskAgent()
-        self.margin = MarginAgent()
-        self.manipulation_watch = ManipulationWatch()
-        self.governance = GovernanceAgent()
+        # TODO(merge): swap constructors if main moves agent modules.
+        # Prompt aliases recommend/analyse/review map to assess() on main.
+        self.vanna: VannaLike = VannaAgent()
+        self.last_look: LastLookLike = LastLookAgent()
+        self.counterparty_risk: CounterpartyRiskLike = CounterpartyRiskAgent()
+        self.margin: MarginLike = MarginAgent()
+        self.manipulation_watch: ManipulationWatchLike = ManipulationWatch()
+        self.governance: GovernanceLike = GovernanceAgent()
 
     def assess(
         self,

@@ -29,7 +29,9 @@ The run reported zero raw records and zero client identities shared.
 - `apps/agent/vanna_agent/agent_app.py` — **full 6-agent orchestrator entry point**
 - `apps/agent/vanna_agent/agents/orchestrator.py` — **OrchestratorAgent sequencing all 6 agents**
 - `apps/agent/vanna_agent/domain.py` — deterministic routing and governance
+- `apps/agent/vanna_agent/agents/interfaces.py` — stable `assess()` protocols (`VannaLike`, `LastLookLike`, `CounterpartyRiskLike`). Prompt aliases recommend/analyse/review map to these.
 - `apps/agent/vanna_agent/agents/` — all seven independent typed agent roles
+- `apps/federation/vanna_federation/privacy.py` — desk-local HMAC vault + bucket helpers (never sent in Flower messages)
 - `packages/vanna-core/src/vanna_core` — reusable domain contracts
 - `scripts/sync_federation_artifact.py` — federation-to-agent handoff
 - `scripts/local_demo.py` — endpoint-independent demo
@@ -124,6 +126,12 @@ To connect SuperNodes to the `@molyleela/Vanna` federation:
    - Run `flwr federation list` to see available federations
    - Run `flwr federation status @molyleela/Vanna` to check node connections
    - Nodes must stay connected for all 3 FedAvg rounds (~15-30s total)
+
+## Merge points for later agent work
+
+- Keep method name `assess`. Do not rename to recommend/analyse/review.
+- Swap constructors only in `OrchestratorAgent.__init__` (`TODO(merge)`).
+- Federation stays a separate FAB from the AgentApp.
 
 ## Remaining work
 

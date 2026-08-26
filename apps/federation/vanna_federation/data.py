@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 from numpy.typing import NDArray
+
+from .privacy import bucket_latency, bucket_notional, pseudonymize
 
 PROVIDERS = ("LP_A", "LP_B", "LP_C")
 FEATURE_NAMES = (
@@ -21,11 +23,37 @@ FEATURE_NAMES = (
 
 
 @dataclass(frozen=True)
+class LocalAuditEntry:
+    hash_id: str
+    local_order_id: str
+    uti: str
+    client_id: str
+    notional_bucket: str
+    latency_bucket: str
+
+
+@dataclass(frozen=True)
+class DeskVault:
+    """In-memory audit map. Never serialize this into a Flower message."""
+
+    desk_id: int
+    secret: str
+    entries: tuple[LocalAuditEntry, ...] = ()
+
+    def reveal(self, hash_id: str) -> LocalAuditEntry | None:
+        for entry in self.entries:
+            if entry.hash_id == hash_id:
+                return entry
+        return None
+
+
+@dataclass(frozen=True)
 class DeskData:
     x_train: NDArray[np.float64]
     y_train: NDArray[np.float64]
     x_test: NDArray[np.float64]
     y_test: NDArray[np.float64]
+    vault: DeskVault = field(default_factory=lambda: DeskVault(desk_id=-1, secret=""))
 
 
 def _sigmoid(value: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -68,7 +96,27 @@ def generate_desk_data(partition_id: int, samples: int = 450) -> DeskData:
     )
     y = rng.binomial(1, _sigmoid(logits)).astype(np.float64)
     split = int(samples * 0.8)
-    return DeskData(x[:split], y[:split], x[split:], y[split:])
+
+    secret = f"desk-{partition_id}-local-secret"
+    entries = []
+    for index in range(samples):
+        local_order_id = f"DESK{partition_id}-ORD-{index:06d}"
+        uti = f"UTI-{partition_id}-{index:06d}"
+        client_id = f"CLIENT-{partition_id}-{(index % 20):03d}"
+        notional = float(size_scaled[index] * 10_000_000)
+        latency_ms = 20.0 + 90.0 * float(quote_age_scaled[index])
+        entries.append(
+            LocalAuditEntry(
+                hash_id=pseudonymize(secret, local_order_id),
+                local_order_id=local_order_id,
+                uti=uti,
+                client_id=client_id,
+                notional_bucket=bucket_notional(notional),
+                latency_bucket=bucket_latency(latency_ms),
+            )
+        )
+    vault = DeskVault(desk_id=partition_id, secret=secret, entries=tuple(entries))
+    return DeskData(x[:split], y[:split], x[split:], y[split:], vault=vault)
 
 
 def global_test_data() -> tuple[NDArray[np.float64], NDArray[np.float64]]:

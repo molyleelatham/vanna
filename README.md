@@ -7,9 +7,10 @@ tightest displayed quote is not always the best executable quote.
 Five simulated desks train on private execution histories. Flower aggregates
 their model updates. Six typed agent roles cover execution value, last look,
 counterparty reliability, margin pressure, manipulation signals, and
-governance. The current bounded Vanna → LastLook runtime remains in place until
-the final orchestrator merge. Raw orders, client identities, UTIs, and live
-intentions never enter the shared payload.
+governance. OrchestratorAgent sequences those roles through stable `assess()`
+interfaces so later main-branch agent work is a class swap, not a rename.
+Raw orders, client identities, UTIs, and live intentions never enter the shared
+payload. Live decisions use `scripts/local_demo.py` and do not wait on SuperGrid.
 
 ## Architecture
 
@@ -36,7 +37,7 @@ independent Flower apps:
 
 ```text
 apps/federation/       five-desk Flower simulation and evidence export
-apps/agent/            all six typed agent roles and current AgentApp entry point
+apps/agent/            AgentApp + OrchestratorAgent (`assess()` merge points)
 packages/vanna-core/   reusable privacy, schemas, scoring, and governance
 scripts/               artifact handoff and deterministic live-path demo
 tests/                 privacy, federation, routing, governance, and agent tests
