@@ -14,6 +14,7 @@ from openai import OpenAI
 from .agents import OrchestratorAgent
 from .connectors import ConnectorClient
 from .domain import OrderRequest, ProviderEvidence
+from .xgboost_local import train_local_xgboost_models, compare_models  # type: ignore
 
 MODEL = os.getenv("VANNA_MODEL_ID", "glm-5.2-fp8")
 MAX_AGENT_CALLS = 6
@@ -130,6 +131,12 @@ def main(agent: AgentSession, context: Context) -> None:
 
     # Run pipeline with live data enrichment
     result = run_pipeline(prompt, connectors=connectors)
+    
+    # Load evidence for model comparison
+    import json
+    from .domain import ProviderEvidence
+    payload = json.loads((Path(__file__).parent / "artifacts" / "provider_evidence.json").read_text())
+    evidence = [ProviderEvidence.model_validate(item) for item in payload["providers"]]
     answer = ""
 
     try:
@@ -139,7 +146,19 @@ def main(agent: AgentSession, context: Context) -> None:
             max_retries=0,
         )
 
-        # Tool loop: allow model to request connector data (bounded by MAX_TOOL_TURNS)
+        # Include local vs federated model comparison in initial context
+        fill_model, slippage_model, latency_model = train_local_xgboost_models()
+        model_comparison = compare_models(
+            pair=result["order_context"]["pair"],
+            providers=result["order_context"]["available_providers"],
+            evidence=evidence,
+            fill_model=fill_model,
+            slippage_model=slippage_model,
+            latency_model=latency_model,
+        )
+        
+        comparison_data = [c.__dict__ for c in model_comparison]
+        
         messages = [
             {
                 "role": "system",
@@ -147,13 +166,18 @@ def main(agent: AgentSession, context: Context) -> None:
                     "You are the Vanna Orchestrator. Present the six-agent collaborative analysis "
                     "in sequence: Vanna (execution value), LastLook (conditional rejection), "
                     "CounterpartyRisk (reliability), Margin (pressure), ManipulationWatch (surveillance), "
-                    "Governance (final decision). Preserve all supplied numbers. State this is advisory "
+                    "Governance (final decision). "
+                    "Also present the Local XGBoost vs Federated Logistic model comparison. "
+                    "Preserve all supplied numbers. State this is advisory "
                     "only — no automatic execution, blacklist, collective instruction, or misconduct finding."
                 ),
             },
             {
                 "role": "user",
-                "content": json.dumps(result),
+                "content": json.dumps({
+                    **result,
+                    "model_comparison": comparison_data,
+                }),
             },
         ]
 
