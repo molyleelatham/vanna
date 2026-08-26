@@ -12,14 +12,14 @@ from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
 from flwr.serverapp import Grid, ServerApp
 from flwr.serverapp.strategy import FedAvg
 
-from .data import global_test_data
+from .data import global_test_data_legacy
 from .model import accuracy, binary_cross_entropy, initial_parameters, predict_probability
 
 app = ServerApp()
 
 
 def global_evaluate(_server_round: int, arrays: ArrayRecord) -> MetricRecord:
-    x_test, y_test = global_test_data()
+    x_test, y_test = global_test_data_legacy()
     parameters = arrays.to_numpy_ndarrays()
     return MetricRecord(
         {

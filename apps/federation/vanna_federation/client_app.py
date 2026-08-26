@@ -3,7 +3,7 @@
 from flwr.app import ArrayRecord, Context, Message, MetricRecord, RecordDict
 from flwr.clientapp import ClientApp
 
-from .data import generate_desk_data
+from .data import generate_desk_data_legacy
 from .model import accuracy, binary_cross_entropy, train as train_model
 
 app = ClientApp()
@@ -12,7 +12,7 @@ app = ClientApp()
 @app.train()
 def train(msg: Message, context: Context) -> Message:
     partition_id = int(context.node_config["partition-id"])
-    data = generate_desk_data(partition_id)
+    data = generate_desk_data_legacy(partition_id)
     parameters = msg.content["arrays"].to_numpy_ndarrays()
     updated, loss = train_model(
         data.x_train,
@@ -39,7 +39,7 @@ def train(msg: Message, context: Context) -> Message:
 @app.evaluate()
 def evaluate(msg: Message, context: Context) -> Message:
     partition_id = int(context.node_config["partition-id"])
-    data = generate_desk_data(partition_id)
+    data = generate_desk_data_legacy(partition_id)
     parameters = msg.content["arrays"].to_numpy_ndarrays()
     metrics = MetricRecord(
         {
