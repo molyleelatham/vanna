@@ -12,4 +12,5 @@ exec flower-supernode \
   --superlink fleet-supergrid.flower.ai:443 \
   --auth-supernode-private-key "$HOME/vanna_data/keys/desk_0_private.pem" \
   --node-config="partition-id=0" \
-  --port 9094
+  --port 9094 \
+  --allow-runtime-dependency-installation

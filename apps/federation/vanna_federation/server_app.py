@@ -217,7 +217,13 @@ def main(grid: Grid, context: Context) -> None:
         )
         
         # Save checkpoint after this round
-        round_model_bytes = round_result.arrays.to_numpy_ndarrays()[0].tobytes()
+        round_arrays = round_result.arrays.to_numpy_ndarrays()
+        if not round_arrays:
+            # All nodes failed this round (e.g. missing deps); keep the last
+            # known model and stop instead of crashing on an empty result.
+            print(f"Round {round_num}: no client updates received; aborting early.")
+            break
+        round_model_bytes = round_arrays[0].tobytes()
         # Extract metrics from the result (check various possible locations)
         metrics = {"round": round_num}
         try:
