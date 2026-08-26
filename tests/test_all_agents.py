@@ -7,6 +7,7 @@ from vanna_agent.agents import (
     LastLookAgent,
     ManipulationWatch,
     MarginAgent,
+    OrchestratorAgent,
     VannaAgent,
 )
 from vanna_agent.agents.contracts import (
@@ -68,6 +69,7 @@ def test_registry_contains_every_documented_agent() -> None:
         "MarginAgent",
         "ManipulationWatch",
         "GovernanceAgent",
+        "OrchestratorAgent",
     }
 
 

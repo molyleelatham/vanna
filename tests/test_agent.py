@@ -15,12 +15,20 @@ def test_structured_handoff_and_local_fallback() -> None:
             }
         )
     )
-    assert MAX_AGENT_CALLS == 2
+    assert MAX_AGENT_CALLS == 6
     assert result["vanna_recommendation"]["provider"] == "LP_B"
+    assert "counterparty_risk" in result
+    assert "margin" in result
+    assert "manipulation" in result
+    assert "governance" in result
     assert result["privacy"] == {
         "raw_records_shared": 0,
         "client_identities_shared": 0,
     }
     answer = deterministic_answer(result, "endpoint unavailable")
     assert "deterministic fallback" in answer
-    assert "no automatic execution or blacklist" in answer
+    assert "no auto-execution or blacklist" in answer
+    assert "CounterpartyRisk" in answer
+    assert "Margin" in answer
+    assert "ManipulationWatch" in answer
+    assert "Governance" in answer

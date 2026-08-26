@@ -14,9 +14,9 @@ development.
 - Federation FAB: builds successfully
 - Agent FAB: builds successfully
 - Agent roles: Vanna, LastLookAgent, CounterpartyRiskAgent, MarginAgent,
-  ManipulationWatch, and GovernanceAgent
+  ManipulationWatch, GovernanceAgent, **OrchestratorAgent**
 - Tests: 13 passing
-- Deterministic live-path demo: working
+- Deterministic live-path demo: working (full 6-agent chain)
 
 The completed federation run executed three FedAvg rounds across five clients
 in 12.81 seconds. Centralised evaluation loss moved from `0.6931` to `0.6646`.
@@ -26,14 +26,16 @@ The run reported zero raw records and zero client identities shared.
 
 - `apps/federation/vanna_federation/client_app.py` — local desk training
 - `apps/federation/vanna_federation/server_app.py` — FedAvg and artifact export
-- `apps/agent/vanna_agent/agent_app.py` — current bounded agent chain
+- `apps/agent/vanna_agent/agent_app.py` — **full 6-agent orchestrator entry point**
+- `apps/agent/vanna_agent/agents/orchestrator.py` — **OrchestratorAgent sequencing all 6 agents**
 - `apps/agent/vanna_agent/domain.py` — deterministic routing and governance
-- `apps/agent/vanna_agent/agents/` — all six independent typed agent roles
+- `apps/agent/vanna_agent/agents/` — all seven independent typed agent roles
 - `packages/vanna-core/src/vanna_core` — reusable domain contracts
 - `scripts/sync_federation_artifact.py` — federation-to-agent handoff
 - `scripts/local_demo.py` — endpoint-independent demo
 - `TECH_ARCH.md` — architecture and integration contracts
 - `AGENTS.md` — contribution and safety instructions
+- `TODO.md` — prioritized completion plan
 
 ## Agent-team integration contract
 
@@ -42,7 +44,7 @@ strict structured handoff. It must not depend on direct access to desk-local
 records. Numeric recommendations and governance remain deterministic; model
 calls explain the supplied evidence.
 
-The final orchestration agent should be merged last:
+The final orchestration agent is now merged:
 
 ```text
 SuperGrid or SuperLink
@@ -56,11 +58,13 @@ SuperGrid or SuperLink
     → local recommendation or human review
 ```
 
-The orchestrator should validate run input, route typed state between agents,
-enforce call/time limits, record model versions and failures, and invoke the
+The orchestrator validates run input, routes typed state between agents,
+enforces call/time limits, records model versions and failures, and invokes the
 deterministic fallback when a child agent or endpoint fails.
 
 ## Running the infrastructure
+
+**Local simulation (reliable demo path):**
 
 ```bash
 cd apps/federation
@@ -70,22 +74,62 @@ uv run python scripts/sync_federation_artifact.py
 uv run python scripts/local_demo.py
 ```
 
-Run the AgentApp on the configured Vanna SuperGrid federation:
+**SuperGrid federation (requires 5 SuperNodes connected to `@molyleela/Vanna`):**
 
 ```bash
-cd apps/agent
+cd apps/federation
 uv run flwr run . supergrid --federation @molyleela/Vanna --stream
 ```
 
-This requires available SuperGrid execution resources and a configured model
-endpoint. Never add model keys or Flower authentication material to Git.
+**SuperGrid AgentApp (requires SuperGrid resources + AMD model endpoint):**
+
+```bash
+cd apps/agent
+export FLWR_MODEL_API_ENDPOINT="<full /v1/responses endpoint>"
+export FLWR_MODEL_API_KEY="<key from hackathon Slack>"
+export VANNA_MODEL_ID="<matching model ID>"
+uv run flwr run . supergrid --federation @molyleela/Vanna --stream
+```
+
+**Local SuperLink + AgentApp (AMD Responses-compatible endpoint):**
+
+```bash
+export FLWR_MODEL_API_ENDPOINT="<full /v1/responses endpoint>"
+export FLWR_MODEL_API_KEY="<key from hackathon Slack>"
+export VANNA_MODEL_ID="<matching model ID>"
+uv run flower-superlink --insecure
+# In another terminal:
+cd apps/agent
+uv run flwr run . local-superlink --stream
+```
+
+Never add model keys or Flower authentication material to Git.
+
+## SuperGrid SuperNode connection (for your friend)
+
+To connect SuperNodes to the `@molyleela/Vanna` federation:
+
+1. **Each SuperNode runs:**
+   ```bash
+   flower-supernode --superlink supergrid.flower.ai --federation @molyleela/Vanna
+   ```
+
+2. **Requirements:**
+   - Flower 1.35.0+ installed
+   - SuperGrid authentication configured (`flwr login supergrid`)
+   - Network access to `supergrid.flower.ai`
+   - 5 nodes must connect simultaneously (federation config: `min_train_nodes=5`)
+
+3. **Troubleshooting:**
+   - Run `flwr federation list` to see available federations
+   - Run `flwr federation status @molyleela/Vanna` to check node connections
+   - Nodes must stay connected for all 3 FedAvg rounds (~15-30s total)
 
 ## Remaining work
 
 1. Refine prompts or model-backed explanations for the completed deterministic
    agent roles without moving numerical decisions into the model.
-2. Merge the orchestration layer after the agent and infrastructure interfaces
-   are stable.
+2. ~~Merge the orchestration layer~~ **DONE** — OrchestratorAgent wired in AgentApp.
 3. Run the complete AgentApp on `@molyleela/Vanna` with the selected AMD model.
 4. Add agent timeout, malformed-output, and child-failure integration tests.
 5. Record only measured final demo metrics.

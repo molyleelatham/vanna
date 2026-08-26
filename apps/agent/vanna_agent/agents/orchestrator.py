@@ -1,0 +1,131 @@
+"""Orchestrator: sequences all six Vanna agents and builds the final GovernanceContext."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Any
+
+from .contracts import (
+    CounterpartyRiskAssessment,
+    GovernanceAssessment,
+    GovernanceContext,
+    LastLookAssessment,
+    ManipulationAssessment,
+    MarginAssessment,
+    MarginContext,
+    MarketPatternContext,
+)
+from .counterparty_risk import CounterpartyRiskAgent
+from .governance import GovernanceAgent
+from .last_look import LastLookAgent
+from .manipulation_watch import ManipulationWatch
+from .margin import MarginAgent
+from .vanna import VannaAgent
+from ..domain import OrderRequest, ProviderEvidence, Recommendation
+
+
+class OrchestratorAgent:
+    name = "OrchestratorAgent"
+
+    def __init__(self) -> None:
+        self.vanna = VannaAgent()
+        self.last_look = LastLookAgent()
+        self.counterparty_risk = CounterpartyRiskAgent()
+        self.margin = MarginAgent()
+        self.manipulation_watch = ManipulationWatch()
+        self.governance = GovernanceAgent()
+
+    def assess(
+        self,
+        order: OrderRequest,
+        evidence: list[ProviderEvidence],
+        *,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        current_time = now or datetime.now(UTC)
+
+        # 1. Vanna: execution-value ranking
+        recommendation = self.vanna.assess(order, evidence, now=current_time)
+
+        # 2. LastLook: conditional rejection asymmetry on displayed-quote leader
+        last_look = self.last_look.assess(order, evidence)
+
+        # 3. CounterpartyRisk: reliability on recommended provider
+        counterparty_risk = self.counterparty_risk.assess(recommendation, evidence)
+
+        # 4. Margin: advisory pressure from order context
+        margin_context = self._build_margin_context(order, current_time)
+        margin = self.margin.assess(margin_context)
+
+        # 5. ManipulationWatch: market-pattern surveillance on displayed-quote leader
+        available = [item for item in evidence if item.provider in order.available_providers]
+        displayed_quote_leader = max(
+            available,
+            key=lambda item: item.displayed_price_benefit_bps,
+        )
+        manipulation_context = self._build_manipulation_context(displayed_quote_leader)
+        manipulation = self.manipulation_watch.assess(manipulation_context)
+
+        # 6. Governance: final decision consuming all assessments
+        governance_context = GovernanceContext(
+            recommendation=recommendation,
+            last_look=last_look,
+            counterparty_risk=counterparty_risk,
+            margin=margin,
+            manipulation=manipulation,
+            cohort_size=5,  # from federation artifact
+            synchronized_routing_ratio=0.0,  # TODO: compute from evidence if available
+            rare_participant_query=False,
+            anomalous_model_update=False,
+        )
+        governance = self.governance.assess(governance_context)
+
+        return {
+            "recommendation": recommendation,
+            "last_look": last_look,
+            "counterparty_risk": counterparty_risk,
+            "margin": margin,
+            "manipulation": manipulation,
+            "governance": governance,
+        }
+
+    def _build_margin_context(self, order: OrderRequest, now: datetime) -> MarginContext:
+        """Build MarginContext from order and current market conditions.
+
+        In production this would come from a risk system. For the demo we derive
+        sensible defaults from the order's volatility and size bucket.
+        """
+        volatility_pressure = {"calm": 0.2, "normal": 0.5, "high": 0.8}[order.volatility]
+        size_pressure = {"<1m": 0.1, "1m-5m": 0.4, "5m-10m": 0.7, ">10m": 0.9}[order.size_bucket]
+
+        return MarginContext(
+            pair=order.pair,
+            volatility=order.volatility,
+            margin_utilization=min(0.3 + 0.5 * volatility_pressure, 0.95),
+            leverage_ratio=5.0 + 15.0 * size_pressure,
+            correlated_exposure=0.2 + 0.6 * volatility_pressure,
+            settlement_pressure=0.1 + 0.4 * volatility_pressure,
+        )
+
+    def _build_manipulation_context(self, leader: ProviderEvidence) -> MarketPatternContext:
+        """Build MarketPatternContext from the displayed-quote leader's evidence.
+
+        In production this would come from a surveillance feed. For the demo we
+        derive signals from the provider's rejection asymmetry and fill probability.
+        """
+        # Higher rejection asymmetry and lower fill prob → more suspicious quoting
+        quote_activity = 10.0 + 40.0 * abs(leader.rejection_asymmetry)
+        cancellation_rate = 0.1 + 0.5 * (1.0 - leader.fill_probability)
+        sync_score = 0.1 + 0.4 * abs(leader.rejection_asymmetry)
+        cross_pair = 0.05 + 0.3 * (1.0 - leader.fill_probability)
+        pre_movement = 0.05 + 0.2 * abs(leader.rejection_asymmetry)
+
+        return MarketPatternContext(
+            provider=leader.provider,
+            quote_to_trade_ratio=quote_activity,
+            cancellation_rate=cancellation_rate,
+            synchronized_quote_score=sync_score,
+            cross_pair_anomaly_score=cross_pair,
+            pre_movement_activity_score=pre_movement,
+            sample_count=leader.sample_count,
+        )
