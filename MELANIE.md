@@ -27,12 +27,60 @@ flwr federation status @molyleela/Vanna
 
 ## Start a SuperNode (run 5 times, in 5 terminals)
 
+### Option A: Simulation/Testing (no local data)
 ```bash
-# Each terminal runs ONE SuperNode
+# Each terminal runs ONE SuperNode (uses synthetic data from FAB)
 flower-supernode \
   --superlink supergrid.flower.ai \
   --federation @molyleela/Vanna
 ```
+
+### Option B: Deployment Mode (with real desk data) — **Recommended for Hackathon**
+```bash
+# Each terminal runs ONE SuperNode with its own desk partition
+# Terminal 1 (DESK_A):
+flower-supernode \
+  --insecure \
+  --superlink supergrid.flower.ai \
+  --federation @molyleela/Vanna \
+  --node-config="data-path=/app/data/desk_0.npz"
+
+# Terminal 2 (DESK_B):
+flower-supernode \
+  --insecure \
+  --superlink supergrid.flower.ai \
+  --federation @molyleela/Vanna \
+  --node-config="data-path=/app/data/desk_1.npz"
+
+# Terminal 3 (DESK_C):
+flower-supernode \
+  --insecure \
+  --superlink supergrid.flower.ai \
+  --federation @molyleela/Vanna \
+  --node-config="data-path=/app/data/desk_2.npz"
+
+# Terminal 4 (DESK_D):
+flower-supernode \
+  --insecure \
+  --superlink supergrid.flower.ai \
+  --federation @molyleela/Vanna \
+  --node-config="data-path=/app/data/desk_3.npz"
+
+# Terminal 5 (DESK_E):
+flower-supernode \
+  --insecure \
+  --superlink supergrid.flower.ai \
+  --federation @molyleela/Vanna \
+  --node-config="data-path=/app/data/desk_4.npz"
+```
+
+**Key differences:**
+| Option | Data Source | Use Case |
+|--------|-------------|----------|
+| A | Synthetic (in FAB) | Quick test, no local files |
+| B | Real desk partitions (NPZ) | **Production / Hackathon demo** |
+
+**For Option B, each SuperNode needs its desk partition NPZ file.** See "Prepare Desk Data" below.
 
 **Important:**
 - All 5 must connect **simultaneously** (federation requires `min_train_nodes=5`)
@@ -41,15 +89,32 @@ flower-supernode \
 
 ---
 
-## Verify nodes are connected
+## Prepare Desk Data (for Option B)
 
-In another terminal:
+Each SuperNode needs its desk partition as an `.npz` file. Generate them:
 
 ```bash
-flwr federation status @molyleela/Vanna
+# On Moly's machine (or any machine with the repo):
+cd /Users/molyleelatham/flowerhackathon
+uv run python -c "
+from apps.federation.vanna_federation.desk_config import generate_random_desk_configs, save_desk_configs
+from apps.federation.vanna_federation.data import generate_all_desks
+from apps.federation.vanna_federation.persistence import save_desk_partition, ensure_dirs
+from pathlib import Path
+
+# Generate 5 desk configs
+configs = generate_random_desk_configs(num_desks=5, seed=20260826)
+desks = generate_all_desks(configs)
+
+# Save each partition
+for i, (config, desk) in enumerate(zip(configs, desks)):
+    save_desk_partition(i, config.to_dict(), desk.x_train, desk.y_train, desk.x_test, desk.y_test)
+
+print('Desk partitions saved to artifacts/desk_partitions/')
+"
 ```
 
-Should show 5 connected SuperNodes.
+Copy the 5 `.npz` files to each SuperNode machine at `/app/data/desk_N.npz`.
 
 ---
 
@@ -62,7 +127,7 @@ cd apps/federation
 uv run flwr run . supergrid --federation @molyleela/Vanna --stream
 ```
 
-This submits the FAB to SuperGrid; the 5 connected SuperNodes will execute the 3 FedAvg rounds.
+This submits the FAB to SuperGrid; the 5 connected SuperNodes will execute the 3 FedAvg rounds using their local desk partitions.
 
 ---
 
@@ -91,6 +156,26 @@ uv run python scripts/local_demo.py
 ```
 
 This uses Ray to simulate 5 SuperNodes locally — no SuperGrid login needed.
+
+---
+
+## Local SuperLink + AgentApp (for full demo)
+
+If you have the AMD model endpoint:
+
+```bash
+# Terminal 1: Start local SuperLink
+export FLWR_MODEL_API_ENDPOINT="<hackathon /v1/responses endpoint>"
+export FLWR_MODEL_API_KEY="<hackathon Slack key>"
+export VANNA_MODEL_ID="<matching model ID>"
+uv run flower-superlink --insecure
+
+# Terminal 2: Run AgentApp on local SuperLink
+cd apps/agent
+uv run flwr run . local-superlink --stream
+```
+
+This runs the AgentApp against your local SuperLink with the model endpoint.
 
 ---
 
