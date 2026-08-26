@@ -18,3 +18,8 @@ node_modules/
 *.tsbuildinfo
 apps/dashboard/vite.config.js
 apps/dashboard/vite.config.d.ts
+
+# Markdown docs: only README.md and DEMO.md are tracked
+*.md
+!README.md
+!DEMO.md
