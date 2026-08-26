@@ -133,6 +133,9 @@ def main(agent: AgentSession, context: Context) -> None:
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("agent.input must be a non-empty JSON string")
 
+    # Model ID can be overridden per run (SuperGrid runs can't set env vars)
+    model_id = context.run_config.get("model-id") or MODEL
+
     # Initialize connector client for live data
     connectors = ConnectorClient(agent)
 
@@ -190,7 +193,7 @@ def main(agent: AgentSession, context: Context) -> None:
 
         for turn in range(MAX_TOOL_TURNS):
             stream = client.responses.create(
-                model=MODEL,
+                model=model_id,
                 input=messages,
                 stream=True,
                 tools=[
