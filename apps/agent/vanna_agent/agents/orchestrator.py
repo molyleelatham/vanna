@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from ..connectors import ConnectorClient
 from .contracts import (
     CounterpartyRiskAssessment,
     GovernanceAssessment,
@@ -27,13 +28,14 @@ from ..domain import OrderRequest, ProviderEvidence, Recommendation
 class OrchestratorAgent:
     name = "OrchestratorAgent"
 
-    def __init__(self) -> None:
+    def __init__(self, connectors: ConnectorClient | None = None) -> None:
         self.vanna = VannaAgent()
         self.last_look = LastLookAgent()
         self.counterparty_risk = CounterpartyRiskAgent()
         self.margin = MarginAgent()
         self.manipulation_watch = ManipulationWatch()
         self.governance = GovernanceAgent()
+        self.connectors = connectors
 
     def assess(
         self,
@@ -44,29 +46,29 @@ class OrchestratorAgent:
     ) -> dict[str, Any]:
         current_time = now or datetime.now(UTC)
 
-        # 1. Vanna: execution-value ranking
-        recommendation = self.vanna.assess(order, evidence, now=current_time)
+        # 1. Vanna: execution-value ranking (with live execution history)
+        recommendation = self.vanna.assess(order, evidence, connectors=self.connectors, now=current_time)
 
-        # 2. LastLook: conditional rejection asymmetry on displayed-quote leader
-        last_look = self.last_look.assess(order, evidence)
+        # 2. LastLook: conditional rejection asymmetry on displayed-quote leader (with live order flow)
+        last_look = self.last_look.assess(order, evidence, connectors=self.connectors)
 
-        # 3. CounterpartyRisk: reliability on recommended provider
-        counterparty_risk = self.counterparty_risk.assess(recommendation, evidence)
+        # 3. CounterpartyRisk: reliability on recommended provider (with live execution history)
+        counterparty_risk = self.counterparty_risk.assess(recommendation, evidence, connectors=self.connectors)
 
-        # 4. Margin: advisory pressure from order context
+        # 4. Margin: advisory pressure from order context (with live risk metrics)
         margin_context = self._build_margin_context(order, current_time)
-        margin = self.margin.assess(margin_context)
+        margin = self.margin.assess(margin_context, connectors=self.connectors)
 
-        # 5. ManipulationWatch: market-pattern surveillance on displayed-quote leader
+        # 5. ManipulationWatch: market-pattern surveillance on displayed-quote leader (with live surveillance)
         available = [item for item in evidence if item.provider in order.available_providers]
         displayed_quote_leader = max(
             available,
             key=lambda item: item.displayed_price_benefit_bps,
         )
         manipulation_context = self._build_manipulation_context(displayed_quote_leader)
-        manipulation = self.manipulation_watch.assess(manipulation_context)
+        manipulation = self.manipulation_watch.assess(manipulation_context, connectors=self.connectors)
 
-        # 6. Governance: final decision consuming all assessments
+        # 6. Governance: final decision consuming all assessments (with live federation metrics)
         governance_context = GovernanceContext(
             recommendation=recommendation,
             last_look=last_look,
@@ -74,11 +76,11 @@ class OrchestratorAgent:
             margin=margin,
             manipulation=manipulation,
             cohort_size=5,  # from federation artifact
-            synchronized_routing_ratio=0.0,  # TODO: compute from evidence if available
+            synchronized_routing_ratio=0.0,  # will be overridden by live metrics if available
             rare_participant_query=False,
             anomalous_model_update=False,
         )
-        governance = self.governance.assess(governance_context)
+        governance = self.governance.assess(governance_context, connectors=self.connectors)
 
         return {
             "recommendation": recommendation,

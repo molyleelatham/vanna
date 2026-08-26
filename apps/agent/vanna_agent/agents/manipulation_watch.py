@@ -2,34 +2,67 @@
 
 from __future__ import annotations
 
+from ..connectors import ConnectorClient, SurveillanceSignal
 from .contracts import ManipulationAssessment, MarketPatternContext
 
 
 class ManipulationWatch:
     name = "ManipulationWatch"
 
-    def assess(self, context: MarketPatternContext) -> ManipulationAssessment:
-        quote_activity = min(context.quote_to_trade_ratio / 50.0, 1.0)
+    def assess(
+        self,
+        context: MarketPatternContext,
+        connectors: ConnectorClient | None = None,
+    ) -> ManipulationAssessment:
+        # If connectors available, use live surveillance signal; else use context
+        if connectors is not None:
+            try:
+                live = connectors.surveillance_signal_or_fallback(
+                    provider=context.provider,
+                    window="24h",
+                )
+                quote_to_trade_ratio = live.quote_to_trade_ratio
+                cancellation_rate = live.cancellation_rate
+                synchronized_quote_score = live.synchronized_quote_score
+                cross_pair_anomaly_score = live.cross_pair_anomaly_score
+                pre_movement_activity_score = live.pre_movement_activity_score
+                sample_count = live.sample_count
+            except Exception:
+                quote_to_trade_ratio = context.quote_to_trade_ratio
+                cancellation_rate = context.cancellation_rate
+                synchronized_quote_score = context.synchronized_quote_score
+                cross_pair_anomaly_score = context.cross_pair_anomaly_score
+                pre_movement_activity_score = context.pre_movement_activity_score
+                sample_count = context.sample_count
+        else:
+            quote_to_trade_ratio = context.quote_to_trade_ratio
+            cancellation_rate = context.cancellation_rate
+            synchronized_quote_score = context.synchronized_quote_score
+            cross_pair_anomaly_score = context.cross_pair_anomaly_score
+            pre_movement_activity_score = context.pre_movement_activity_score
+            sample_count = context.sample_count
+
+        quote_activity = min(quote_to_trade_ratio / 50.0, 1.0)
         score = round(
             0.20 * quote_activity
-            + 0.25 * context.cancellation_rate
-            + 0.20 * context.synchronized_quote_score
-            + 0.20 * context.cross_pair_anomaly_score
-            + 0.15 * context.pre_movement_activity_score,
+            + 0.25 * cancellation_rate
+            + 0.20 * synchronized_quote_score
+            + 0.20 * cross_pair_anomaly_score
+            + 0.15 * pre_movement_activity_score,
             4,
         )
-        if context.sample_count < 50:
+        if sample_count < 50:
             signal = "watch" if score >= 0.45 else "normal"
         else:
             signal = "review" if score >= 0.72 else "watch" if score >= 0.45 else "normal"
         factors = [
-            f"quote-to-trade ratio {context.quote_to_trade_ratio:.1f}",
-            f"cancellation rate {context.cancellation_rate:.1%}",
-            f"synchronized quote score {context.synchronized_quote_score:.2f}",
-            f"cross-pair anomaly score {context.cross_pair_anomaly_score:.2f}",
-            f"pre-movement activity score {context.pre_movement_activity_score:.2f}",
+            f"quote-to-trade ratio {quote_to_trade_ratio:.1f}",
+            f"cancellation rate {cancellation_rate:.1%}",
+            f"synchronized quote score {synchronized_quote_score:.2f}",
+            f"cross-pair anomaly score {cross_pair_anomaly_score:.2f}",
+            f"pre-movement activity score {pre_movement_activity_score:.2f}",
         ]
-        if context.sample_count < 50:
+        if sample_count < 50:
             factors.append("insufficient sample for a high-confidence review signal")
         return ManipulationAssessment(
             provider=context.provider,

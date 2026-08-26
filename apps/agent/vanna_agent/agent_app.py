@@ -1,4 +1,4 @@
-"""Full six-agent Vanna collaborative AgentApp."""
+"""Full six-agent Vanna collaborative AgentApp with live connector data."""
 
 from __future__ import annotations
 
@@ -12,10 +12,12 @@ from flwr.app import ConfigRecord, Context
 from openai import OpenAI
 
 from .agents import OrchestratorAgent
+from .connectors import ConnectorClient
 from .domain import OrderRequest, ProviderEvidence
 
 MODEL = os.getenv("VANNA_MODEL_ID", "glm-5.2-fp8")
 MAX_AGENT_CALLS = 6
+MAX_TOOL_TURNS = 3
 EVIDENCE_PATH = Path(__file__).parent / "artifacts" / "provider_evidence.json"
 
 app = AgentApp()
@@ -46,12 +48,16 @@ def load_evidence(path: Path = EVIDENCE_PATH) -> dict[str, Any]:
     return payload
 
 
-def run_pipeline(prompt: str, path: Path = EVIDENCE_PATH) -> dict[str, Any]:
+def run_pipeline(
+    prompt: str,
+    path: Path = EVIDENCE_PATH,
+    connectors: ConnectorClient | None = None,
+) -> dict[str, Any]:
     order = OrderRequest.model_validate_json(prompt)
     payload = load_evidence(path)
     evidence = [ProviderEvidence.model_validate(item) for item in payload["providers"]]
 
-    orchestrator = OrchestratorAgent()
+    orchestrator = OrchestratorAgent(connectors=connectors)
     assessments = orchestrator.assess(order, evidence)
 
     return {
@@ -93,8 +99,20 @@ def deterministic_answer(result: dict[str, Any], failure: str | None = None) -> 
     return "\n".join(lines)
 
 
-def persist_result(context: Context, result: dict[str, Any], answer: str) -> None:
-    compact = {"result": result, "answer": answer}
+def persist_result(context: Context, result: dict[str, Any], answer: str, connectors: ConnectorClient | None = None) -> None:
+    # Capture live data snapshot for audit
+    live_snapshot = {}
+    if connectors:
+        try:
+            live_snapshot = {
+                "market_data": connectors.market_data_or_fallback("EUR/USD").__dict__,
+                "risk_metrics": connectors.risk_metrics_or_fallback("EUR/USD").__dict__,
+                "federation_metrics": connectors.federation_metrics_or_fallback().__dict__,
+            }
+        except Exception:
+            live_snapshot = {"error": "failed to capture live snapshot"}
+
+    compact = {"result": result, "answer": answer, "live_snapshot": live_snapshot}
     with context.locked():
         context.state.config_records["vanna-state"] = ConfigRecord(
             {"json": json.dumps(compact)}
@@ -106,7 +124,12 @@ def main(agent: AgentSession, context: Context) -> None:
     prompt = context.run_config.get("agent.input")
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("agent.input must be a non-empty JSON string")
-    result = run_pipeline(prompt)
+
+    # Initialize connector client for live data
+    connectors = ConnectorClient(agent)
+
+    # Run pipeline with live data enrichment
+    result = run_pipeline(prompt, connectors=connectors)
     answer = ""
 
     try:
@@ -116,31 +139,179 @@ def main(agent: AgentSession, context: Context) -> None:
             max_retries=0,
         )
 
-        # Single orchestrator call that streams all six agents' contributions
-        stream = client.responses.create(
-            model=MODEL,
-            instructions=(
-                "You are the Vanna Orchestrator. Present the six-agent collaborative analysis "
-                "in sequence: Vanna (execution value), LastLook (conditional rejection), "
-                "CounterpartyRisk (reliability), Margin (pressure), ManipulationWatch (surveillance), "
-                "Governance (final decision). Preserve all supplied numbers. State this is advisory "
-                "only — no automatic execution, blacklist, collective instruction, or misconduct finding."
-            ),
-            input=json.dumps(result),
-            stream=True,
-        )
-        output: list[str] = []
-        for event in stream:
-            agent.events.emit(event.to_dict())
-            if event.type in {"error", "response.failed", "response.incomplete"}:
-                raise RuntimeError(f"model response did not complete: {event.type}")
-            if event.type in {"response.output_text.delta", "response.refusal.delta"}:
-                output.append(event.delta)
-        answer = "".join(output).strip()
+        # Tool loop: allow model to request connector data (bounded by MAX_TOOL_TURNS)
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are the Vanna Orchestrator. Present the six-agent collaborative analysis "
+                    "in sequence: Vanna (execution value), LastLook (conditional rejection), "
+                    "CounterpartyRisk (reliability), Margin (pressure), ManipulationWatch (surveillance), "
+                    "Governance (final decision). Preserve all supplied numbers. State this is advisory "
+                    "only — no automatic execution, blacklist, collective instruction, or misconduct finding."
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(result),
+            },
+        ]
+
+        for turn in range(MAX_TOOL_TURNS):
+            stream = client.responses.create(
+                model=MODEL,
+                input=messages,
+                stream=True,
+                tools=[
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_market_data",
+                            "description": "Get real-time market data for a currency pair",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "pair": {"type": "string"},
+                                    "window": {"type": "string", "default": "1h"},
+                                },
+                                "required": ["pair"],
+                            },
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_order_flow",
+                            "description": "Get order flow statistics for a provider",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "provider": {"type": "string"},
+                                    "window": {"type": "string", "default": "24h"},
+                                },
+                                "required": ["provider"],
+                            },
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_execution_history",
+                            "description": "Get bucketed execution history for a provider/pair/size",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "provider": {"type": "string"},
+                                    "pair": {"type": "string"},
+                                    "size_bucket": {"type": "string"},
+                                    "window": {"type": "string", "default": "7d"},
+                                },
+                                "required": ["provider", "pair", "size_bucket"],
+                            },
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_risk_metrics",
+                            "description": "Get live risk metrics for a pair",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "pair": {"type": "string"},
+                                },
+                                "required": ["pair"],
+                            },
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_surveillance_signal",
+                            "description": "Get manipulation surveillance signal for a provider",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "provider": {"type": "string"},
+                                    "window": {"type": "string", "default": "24h"},
+                                },
+                                "required": ["provider"],
+                            },
+                        },
+                    },
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "get_federation_metrics",
+                            "description": "Get federation cohort and model metrics",
+                            "parameters": {"type": "object", "properties": {}},
+                        },
+                    },
+                ],
+            )
+            output: list[str] = []
+            tool_calls: list[dict] = []
+            for event in stream:
+                agent.events.emit(event.to_dict())
+                if event.type in {"error", "response.failed", "response.incomplete"}:
+                    raise RuntimeError(f"model response did not complete: {event.type}")
+                if event.type in {"response.output_text.delta", "response.refusal.delta"}:
+                    output.append(event.delta)
+                if event.type == "response.output_item.done" and hasattr(event, "item"):
+                    item = event.item
+                    if getattr(item, "type", None) == "function_call":
+                        tool_calls.append({
+                            "name": item.name,
+                            "arguments": item.arguments,
+                            "call_id": item.call_id,
+                        })
+
+            answer = "".join(output).strip()
+            messages.append({"role": "assistant", "content": answer})
+
+            if not tool_calls:
+                break
+
+            # Execute tool calls and add results to messages
+            for tc in tool_calls:
+                try:
+                    args = json.loads(tc["arguments"])
+                    tool_name = tc["name"]
+                    if tool_name == "get_market_data":
+                        data = connectors.market_data_or_fallback(args["pair"], args.get("window", "1h"))
+                        result_data = data.__dict__
+                    elif tool_name == "get_order_flow":
+                        data = connectors.order_flow_or_fallback(args["provider"], args.get("window", "24h"))
+                        result_data = data.__dict__
+                    elif tool_name == "get_execution_history":
+                        data = connectors.execution_history_or_fallback(
+                            args["provider"], args["pair"], args["size_bucket"], args.get("window", "7d")
+                        )
+                        result_data = data.__dict__
+                    elif tool_name == "get_risk_metrics":
+                        data = connectors.risk_metrics_or_fallback(args["pair"])
+                        result_data = data.__dict__
+                    elif tool_name == "get_surveillance_signal":
+                        data = connectors.surveillance_signal_or_fallback(args["provider"], args.get("window", "24h"))
+                        result_data = data.__dict__
+                    elif tool_name == "get_federation_metrics":
+                        data = connectors.federation_metrics_or_fallback()
+                        result_data = data.__dict__
+                    else:
+                        result_data = {"error": f"Unknown tool: {tool_name}"}
+                except Exception as e:
+                    result_data = {"error": str(e)}
+
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["call_id"],
+                    "content": json.dumps(result_data),
+                })
+
         if not answer:
             raise RuntimeError("model returned an empty final response")
     except Exception as exc:
         answer = deterministic_answer(result, str(exc))
 
-    persist_result(context, result, answer)
+    persist_result(context, result, answer, connectors=connectors)
     print(answer)

@@ -5,6 +5,7 @@ description = "Vanna: federated FX execution intelligence on Flower"
 requires-python = ">=3.11,<4.0"
 dependencies = [
   "flwr[simulation]==1.35.0",
+  "httpx>=0.28.1",
   "numpy>=2.0,<3.0",
   "openai>=2.16.0,<3.0.0",
   "pydantic>=2.10,<3.0",

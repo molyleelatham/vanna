@@ -2,16 +2,37 @@
 
 from __future__ import annotations
 
+from ..connectors import ConnectorClient, FederationMetrics
 from .contracts import GovernanceAssessment, GovernanceContext
 
 
 class GovernanceAgent:
     name = "GovernanceAgent"
 
-    def assess(self, context: GovernanceContext) -> GovernanceAssessment:
+    def assess(
+        self,
+        context: GovernanceContext,
+        connectors: ConnectorClient | None = None,
+    ) -> GovernanceAssessment:
+        # Enrich with live federation metrics if available
+        if connectors is not None:
+            try:
+                fed = connectors.federation_metrics_or_fallback()
+                cohort_size = fed.cohort_size
+                anomalous_model_update = fed.anomalous_update_detected
+                synchronized_routing_ratio = fed.synchronized_routing_ratio
+            except Exception:
+                cohort_size = context.cohort_size
+                anomalous_model_update = context.anomalous_model_update
+                synchronized_routing_ratio = context.synchronized_routing_ratio
+        else:
+            cohort_size = context.cohort_size
+            anomalous_model_update = context.anomalous_model_update
+            synchronized_routing_ratio = context.synchronized_routing_ratio
+
         reasons: list[str] = []
 
-        if context.synchronized_routing_ratio >= 0.60:
+        if synchronized_routing_ratio >= 0.60:
             reasons.append("synchronized routing concentration exceeded the safe threshold")
         if context.rare_participant_query:
             reasons.append("request attempted to isolate rare participant behavior")
@@ -21,14 +42,14 @@ class GovernanceAgent:
                 reasons=reasons,
             )
 
-        if context.anomalous_model_update:
+        if anomalous_model_update:
             return GovernanceAssessment(
                 action="HUMAN_REVIEW",
                 reasons=["anomalous participant model update requires investigation"],
             )
 
         if (
-            context.cohort_size < 3
+            cohort_size < 3
             or context.recommendation.data_freshness_seconds > 900
         ):
             return GovernanceAssessment(

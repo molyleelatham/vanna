@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ..connectors import ConnectorClient, ExecutionHistory
 from ..domain import ProviderEvidence, Recommendation
 from .contracts import CounterpartyRiskAssessment
 
@@ -13,6 +14,7 @@ class CounterpartyRiskAgent:
         self,
         recommendation: Recommendation,
         evidence: list[ProviderEvidence],
+        connectors: ConnectorClient | None = None,
     ) -> CounterpartyRiskAssessment:
         item = next(
             (entry for entry in evidence if entry.provider == recommendation.provider),
@@ -20,6 +22,34 @@ class CounterpartyRiskAgent:
         )
         if item is None:
             raise ValueError("recommended provider has no reliability evidence")
+
+        if connectors is not None:
+            try:
+                live = connectors.execution_history_or_fallback(
+                    provider=item.provider,
+                    pair="EUR/USD",  # TODO: pass pair from recommendation context
+                    size_bucket="1m-5m",  # TODO: pass size_bucket
+                )
+                # Blend static + live for reliability scoring
+                blended_fill = 0.7 * item.fill_probability + 0.3 * live.fill_probability
+                blended_latency = 0.7 * item.expected_latency_ms + 0.3 * live.avg_latency_ms
+                blended_slippage = 0.7 * item.expected_slippage_bps + 0.3 * live.avg_slippage_bps
+                blended_asymmetry = 0.7 * item.rejection_asymmetry  # last_look handles this
+                # Use blended values for scoring
+                item = ProviderEvidence(
+                    provider=item.provider,
+                    sample_count=item.sample_count + live.sample_count,
+                    fill_probability=blended_fill,
+                    rejection_probability=1.0 - blended_fill,
+                    expected_slippage_bps=blended_slippage,
+                    expected_latency_ms=blended_latency,
+                    displayed_price_benefit_bps=item.displayed_price_benefit_bps,
+                    rejection_asymmetry=item.rejection_asymmetry,
+                    model_version=item.model_version,
+                    generated_at=item.generated_at,
+                )
+            except Exception:
+                pass  # Use static item
 
         latency_score = max(0.0, 1.0 - item.expected_latency_ms / 150.0)
         slippage_score = max(0.0, 1.0 - item.expected_slippage_bps / 3.0)
