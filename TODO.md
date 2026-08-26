@@ -46,8 +46,8 @@ Output includes all 6 agents + final Governance decision.
 | **3.1** | Timeout/retries for model calls | ⬜ Not started | Medium |
 | **3.2** | Test malformed agent outputs caught | ⬜ Not started | Medium |
 | **3.3** | Test child-agent failure → deterministic fallback | ⬜ Not started | Medium |
-| **4.1** | AMD model ID from hackathon Slack → re-run with `--run-config "model-id='...'"` | ⏳ Blocked on Slack (run-config override ready, `b421dd2`) | Low |
-| **4.2** | Start local SuperLink: `uv run flower-superlink --insecure` | ⬜ Not started (optional — SuperGrid path works) | Medium (infra) |
+| **4.1** | AMD model endpoint configured — Qwen3.5-397B (`http://129.212.182.232:8001/v1/responses`, no key needed) | ✅ Done — live narration verified (`5c88185`) | Low |
+| **4.2** | Start local SuperLink: `uv run flower-superlink --insecure` | ✅ Done — running with `FLWR_MODEL_API_ENDPOINT` set; AgentApp run `6080902990534498168` narrated by Qwen | Medium (infra) |
 | **4.3** | Run AgentApp on SuperGrid `@molyleela/Vanna` | ✅ Done — run `1896158749138907396` (~22s, fallback narration) | Medium (infra) |
 | **4.4** | 5 SuperNodes registered + online on SuperGrid | ✅ Done — federation run `12309076582906127164` (3 rounds, 5/5 nodes, 0 raw records) | — |
 | **5.1** | Capture federation round times, loss improvement | 🟡 Partial — SuperGrid ~2.5 min measured; **eval loss rose 0.64→0.78** (retune `local-trees` before claiming improvement) | Low |
