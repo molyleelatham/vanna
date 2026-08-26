@@ -20,7 +20,11 @@ The core Flower infrastructure is working, and SuperGrid is live end-to-end.
 - Agent FAB: builds successfully
 - Agent roles: Vanna, LastLookAgent, CounterpartyRiskAgent, MarginAgent,
   ManipulationWatch, GovernanceAgent, **OrchestratorAgent**
-- Tests: 18 passing
+- **SecAgg+ secure aggregation mode**: opt-in via
+  `--run-config secure-aggregation=true`; local simulation verified
+  (3 rounds, 5/5 nodes, 0 failures, 16.37s; centralized loss 0.6931 →
+  0.6528, accuracy 0.607 → 0.647)
+- Tests: 27 passing
 - Deterministic live-path demo: working (full 6-agent chain)
 
 The completed federation run executed three FedAvg rounds across five clients
@@ -29,8 +33,12 @@ The run reported zero raw records and zero client identities shared.
 
 ## Important locations
 
-- `apps/federation/vanna_federation/client_app.py` — local desk training
-- `apps/federation/vanna_federation/server_app.py` — FedAvg and artifact export
+- `apps/federation/vanna_federation/client_app.py` — local desk training +
+  conditional `secaggplus_mod` dispatch
+- `apps/federation/vanna_federation/server_app.py` — FedXgbBagging default,
+  secure-mode branch, and artifact export
+- `apps/federation/vanna_federation/secagg.py` — **SecAgg+ workflow runner
+  (FedAvg + `SecAggPlusWorkflow` via `LegacyContext`)**
 - `apps/federation/vanna_federation/desk_config.py` — **DeskConfig + API endpoint loading**
 - `apps/federation/vanna_federation/data.py` — parameterized desk data generation
 - `apps/agent/vanna_agent/agent_app.py` — **full 6-agent orchestrator entry point**
@@ -81,6 +89,19 @@ cd ../..
 uv run python scripts/sync_federation_artifact.py
 uv run python scripts/local_demo.py
 ```
+
+**Local simulation with SecAgg+ secure aggregation:**
+
+```bash
+cd apps/federation
+uv run flwr run . --federation-config="num-supernodes=5" \
+  --run-config "secure-aggregation=true" --stream
+```
+
+The same flag works for the SuperGrid federation run. Secure mode trains the
+transparent logistic model with FedAvg under SecAgg+ (the server only
+recovers the masked weighted average); the default XGBoost bagging path is
+unchanged. The exported evidence artifact schema is identical either way.
 
 **SuperGrid federation (requires 5 SuperNodes connected to `@molyleela/Vanna`):**
 
@@ -156,14 +177,17 @@ To connect SuperNodes to the `@molyleela/Vanna` federation:
 - **Agent-side live data connectors** (`connectors.py`): `ConnectorClient` wraps Runtime connectors + Alpha Vantage direct fallback for market data. All 7 agents accept optional `connectors` parameter to blend federation evidence with live data.
 - **Tool loop** (`agent_app.py`): `MAX_TOOL_TURNS=3` with 6 function tools (market_data, order_flow, execution_history, risk_metrics, surveillance_signal, federation_metrics).
 - **Live snapshot audit**: `persist_result()` captures live data snapshot in `context.state`.
+- **SecAgg+ secure aggregation mode** (`secagg.py`): opt-in run-config flag switches the federation to FedAvg over the transparent logistic model under Flower's `SecAggPlusWorkflow` + `secaggplus_mod`. The server reconstructs only the weighted average of desk updates; per-round checkpoints contain the aggregate only. `num-shares=5`, `reconstruction-threshold=3` (tolerates 2 dropouts). Verified locally: 3 rounds, 5/5 nodes, 0 failures, 16.37s; centralized loss 0.6931 → 0.6528. SecAgg+ is summation-based and cannot merge XGBoost trees, so the bagging path remains the unsecured default.
 
 ## Known limitations
 
 - The current dataset is synthetic and does not establish production market
   behavior.
 - Simulation does not prove production privacy, security, or network latency.
-- Model updates can leak information without production secure aggregation or
-  differential-privacy controls.
+- The default XGBoost bagging path exposes individual desk model updates to
+  the server; SecAgg+ protection is available only in the opt-in logistic
+  FedAvg mode (secure aggregation is summation-based and cannot merge trees).
+  Differential-privacy controls remain unimplemented.
 - A last-look signal is not evidence of misconduct.
 - Vanna is advisory and must not execute trades or coordinate participant
   behavior automatically.

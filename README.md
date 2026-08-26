@@ -65,9 +65,30 @@ cd ../..
 uv run python scripts/sync_federation_artifact.py
 ```
 
-The run performs three FedAvg rounds, prints measured loss/accuracy and round
-duration, and writes `apps/federation/artifacts/generated/provider_evidence.json`.
+The run performs three federated rounds, prints measured loss/accuracy and
+round duration, and writes
+`apps/federation/artifacts/generated/provider_evidence.json`.
 The sync script copies only that approved aggregate artifact into the AgentApp.
+
+### Secure aggregation mode (SecAgg+)
+
+Add `--run-config "secure-aggregation=true"` to run the federation under
+Flower's SecAgg+ protocol: every desk update is masked on the client and the
+server only recovers the weighted average across desks — individual updates
+are never visible to the server.
+
+```bash
+cd apps/federation
+uv run flwr run . --federation-config="num-supernodes=5" \
+  --run-config "secure-aggregation=true" --stream
+```
+
+Secure mode trains the transparent NumPy logistic model with FedAvg (SecAgg+
+is a summation protocol and cannot merge XGBoost trees, so the default
+bagging path is unchanged). With `num-shares=5` and
+`reconstruction-threshold=3`, a round completes even if up to two nodes drop
+out. The exported evidence artifact has the identical schema in both modes.
+The flag works for the SuperGrid run as well.
 
 ## Build and run the AgentApp
 

@@ -12,7 +12,7 @@ flowchart TD
     DeskData[Five private desk histories] --> Privacy[Local privacy transformation]
     Privacy --> ClientApps[Flower ClientApps]
     ClientApps -->|"Model updates and approved metrics"| ServerApp[Flower ServerApp]
-    ServerApp --> FedAvg[FedAvg on SuperGrid or local SuperLink]
+    ServerApp --> FedAvg[FedXgbBagging or SecAgg+ FedAvg on SuperGrid or local SuperLink]
     FedAvg --> Artifact[Approved provider evidence artifact]
     Artifact --> Orchestrator[Future OrchestratorAgent]
     Orchestrator --> VannaAgent[Vanna execution agent]
@@ -39,12 +39,23 @@ contracts described below.
 Location: `apps/federation`
 
 - `ClientApp` loads one of five reproducible private desk partitions.
-- Clients train a transparent NumPy logistic fill-probability model.
-- Clients return model arrays, aggregate metrics, and
-  `raw-records-shared: 0`.
-- `ServerApp` runs three FedAvg rounds across five SuperNodes.
-- The server exports approved aggregate evidence to
-  `artifacts/generated/provider_evidence.json`.
+- Default mode: clients train local XGBoost trees (FedXgbBagging) and return
+  model bytes, aggregate metrics, and `raw-records-shared: 0`.
+- Secure mode (`--run-config secure-aggregation=true`): clients train the
+  transparent NumPy logistic fill-probability model, and the conditional
+  `secaggplus_mod` masks every update under Flower's SecAgg+ protocol. The
+  server only recovers the weighted average across desks (FedAvg);
+  individual desk updates are never visible to the server. SecAgg+ is a
+  summation protocol, so it cannot merge XGBoost trees — the two modes are
+  therefore distinct by construction.
+- `ServerApp` runs three rounds across five SuperNodes in both modes and
+  exports approved aggregate evidence to
+  `artifacts/generated/provider_evidence.json` with an identical schema.
+
+Secure-mode parameters: `num-shares=5`, `reconstruction-threshold=3`
+(tolerates up to two node dropouts per round), `max-weight=1000`,
+`secagg-timeout=60`, `local-epochs=8`, `learning-rate=0.15`. Per-round
+checkpoints in secure mode contain only the reconstructed aggregate.
 
 ### Agent FAB
 
@@ -142,4 +153,7 @@ uv run pytest -q
 (cd apps/federation && uv run flwr build)
 (cd apps/agent && uv run flwr build)
 uv run python scripts/local_demo.py
+# Secure aggregation mode (local simulation):
+(cd apps/federation && uv run flwr run . --federation-config="num-supernodes=5" \
+  --run-config "secure-aggregation=true" --stream)
 ```

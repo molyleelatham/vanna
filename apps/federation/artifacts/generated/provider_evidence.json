@@ -13,7 +13,7 @@
       "displayed_price_benefit_bps": 0.45,
       "rejection_asymmetry": 0.22,
       "model_version": "fed-xgb-b8f07874e6",
-      "generated_at": "2026-08-26T14:59:53.402160+00:00"
+      "generated_at": "2026-08-26T15:43:14.705263+00:00"
     },
     {
       "provider": "LP_B",
@@ -25,7 +25,7 @@
       "displayed_price_benefit_bps": 0.1,
       "rejection_asymmetry": 0.03,
       "model_version": "fed-xgb-b8f07874e6",
-      "generated_at": "2026-08-26T14:59:53.402160+00:00"
+      "generated_at": "2026-08-26T15:43:14.705263+00:00"
     },
     {
       "provider": "LP_C",
@@ -37,7 +37,7 @@
       "displayed_price_benefit_bps": 0.2,
       "rejection_asymmetry": 0.08,
       "model_version": "fed-xgb-b8f07874e6",
-      "generated_at": "2026-08-26T14:59:53.402160+00:00"
+      "generated_at": "2026-08-26T15:43:14.705263+00:00"
     }
   ]
 }

@@ -6,7 +6,6 @@ Includes checkpointing, training manifest, and final ensemble persistence.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -16,7 +15,9 @@ from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
 from flwr.serverapp import Grid, ServerApp
 from flwr.serverapp.strategy import FedXgbBagging
 
-from .data import global_test_data_legacy
+from .data import FEATURE_NAMES, global_test_data_legacy
+from .model import predict_probability
+from .secagg import run_secure_federation
 from .xgboost_federated import (
     initial_xgb_model,
     evaluate_xgboost,
@@ -52,23 +53,27 @@ def global_evaluate(_server_round: int, arrays: ArrayRecord) -> MetricRecord:
     )
 
 
-def export_approved_evidence(model_bytes: bytes, manifest: TrainingManifest) -> Path:
-    """Export provider evidence from federated XGBoost model.
-    
-    Now derives slippage, latency, rejection prob from regression models
+# Features for each LP used for evidence export (shared by both model paths)
+LP_FEATURES = np.array(
+    [
+        [1, 0, 0, 1, 1, 0, 0.4, 0.25],  # LP_A high vol
+        [0, 1, 0, 1, 0, 0, 0.4, 0.25],  # LP_B high vol
+        [0, 0, 1, 1, 0, 1, 0.4, 0.25],  # LP_C high vol
+    ],
+    dtype=np.float64,
+)
+
+
+def export_approved_evidence(
+    fill_probabilities: np.ndarray, model_tag: str, manifest: TrainingManifest
+) -> Path:
+    """Export provider evidence from federated fill-probability predictions.
+
+    Derives slippage, latency, rejection prob from regression models
     trained on the same synthetic data (in production: from local models).
     """
-    # Generate features for each LP
-    features = np.array(
-        [
-            [1, 0, 0, 1, 1, 0, 0.4, 0.25],  # LP_A high vol
-            [0, 1, 0, 1, 0, 0, 0.4, 0.25],  # LP_B high vol
-            [0, 0, 1, 1, 0, 1, 0.4, 0.25],  # LP_C high vol
-        ],
-        dtype=np.float64,
-    )
-    fill_probabilities = predict_xgboost(model_bytes, features)
-    
+    features = LP_FEATURES
+
     # Derive slippage, latency, rejection probability from regression models
     # (In production these come from local XGBoost regression models per desk)
     rng = np.random.default_rng(20260826)
@@ -105,8 +110,7 @@ def export_approved_evidence(model_bytes: bytes, manifest: TrainingManifest) -> 
     slippage_preds = predict_xgboost_regression(slip_bytes, features)
     latency_preds = predict_xgboost_regression(lat_bytes, features)
     rejection_preds = predict_xgboost_regression(rej_bytes, features)
-    
-    digest = hashlib.sha256(model_bytes).hexdigest()[:10]
+
     generated_at = datetime.now(UTC).isoformat()
     
     providers = []
@@ -127,7 +131,7 @@ def export_approved_evidence(model_bytes: bytes, manifest: TrainingManifest) -> 
                 "expected_latency_ms": round(max(0.0, latency), 1),
                 "displayed_price_benefit_bps": 0.1 if provider == "LP_B" else (0.45 if provider == "LP_A" else 0.2),
                 "rejection_asymmetry": 0.22 if provider == "LP_A" else (0.03 if provider == "LP_B" else 0.08),
-                "model_version": f"fed-xgb-{digest}",
+                "model_version": model_tag,
                 "generated_at": generated_at,
             }
         )
@@ -183,13 +187,62 @@ class CheckpointingFedXgbBagging(FedXgbBagging):
 def main(grid: Grid, context: Context) -> None:
     # Initialize training manifest
     manifest = TrainingManifest()
+    secure = bool(context.run_config["secure-aggregation"])
     manifest.config = {
         "num_desks": 5,
         "num_rounds": int(context.run_config["num-server-rounds"]),
         "local_trees": int(context.run_config["local-trees"]),
         "fraction_evaluate": float(context.run_config["fraction-evaluate"]),
+        "secure_aggregation": "secaggplus" if secure else "none",
     }
-    
+
+    if secure:
+        _main_secure(grid, context, manifest)
+    else:
+        _main_xgboost(grid, context, manifest)
+
+
+def _main_secure(grid: Grid, context: Context, manifest: TrainingManifest) -> None:
+    """FedAvg over the logistic model under SecAgg+ secure aggregation."""
+    manifest.run_id = f"fed-logistic-secagg-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
+
+    final_params = run_secure_federation(grid, context, manifest)
+
+    params_bytes = b"".join(
+        np.asarray(array, dtype=np.float64).tobytes() for array in final_params
+    )
+    digest = compute_model_digest(params_bytes)
+    save_final_ensemble(params_bytes, manifest)
+
+    # The logistic weights are the transparent feature attribution
+    weights = final_params[0]
+    save_feature_importance(
+        {name: round(float(weight), 6) for name, weight in zip(FEATURE_NAMES, weights)},
+        manifest,
+    )
+
+    fill_probabilities = predict_probability(LP_FEATURES, final_params)
+    output = export_approved_evidence(
+        fill_probabilities, f"fed-logistic-secagg-{digest}", manifest
+    )
+
+    manifest.complete(
+        final_model_path=str(Path("artifacts/final_ensemble/final_model.json")),
+        feature_importance_path=str(Path("artifacts/generated/feature_importance.json")),
+        evidence_path=str(output),
+    )
+    save_training_manifest(manifest)
+
+    print(f"Approved aggregate evidence written to {output}")
+    print("Raw orders shared: 0")
+    print("Client identities shared: 0")
+    print("Individual desk updates visible to server: 0 (SecAgg+ masked aggregation)")
+    print("Training manifest saved to artifacts/training_manifest.json")
+    print("Final model saved to artifacts/final_ensemble/final_model.json")
+    print("Checkpoints saved to artifacts/checkpoints/")
+
+
+def _main_xgboost(grid: Grid, context: Context, manifest: TrainingManifest) -> None:
     strategy = CheckpointingFedXgbBagging(
         manifest=manifest,
         fraction_train=1.0,
@@ -265,9 +318,10 @@ def main(grid: Grid, context: Context) -> None:
     # Save feature importance
     importance = get_feature_importance(final_model_bytes)
     save_feature_importance(importance, manifest)
-    
+
     # Export and save provider evidence
-    output = export_approved_evidence(final_model_bytes, manifest)
+    fill_probabilities = predict_xgboost(final_model_bytes, LP_FEATURES)
+    output = export_approved_evidence(fill_probabilities, f"fed-xgb-{digest}", manifest)
     
     # Complete and save manifest
     manifest.complete(
