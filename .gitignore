@@ -12,3 +12,4 @@ build/
 artifacts/generated/
 data/generated/
 .env
+.autohand/
