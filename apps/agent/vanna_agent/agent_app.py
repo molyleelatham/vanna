@@ -184,7 +184,7 @@ def main(agent: AgentSession, context: Context) -> None:
                     "in sequence: Vanna (execution value), LastLook (conditional rejection), "
                     "CounterpartyRisk (reliability), Margin (pressure), ManipulationWatch (surveillance), "
                     "Governance (final decision). "
-                    "Also present the Local XGBoost vs Federated Logistic model comparison. "
+                    "Also present the Local XGBoost vs Federated XGBoost model comparison. "
                     "Preserve all supplied numbers. State this is advisory "
                     "only — no automatic execution, blacklist, collective instruction, or misconduct finding."
                 ),
@@ -206,87 +206,75 @@ def main(agent: AgentSession, context: Context) -> None:
                 tools=[
                     {
                         "type": "function",
-                        "function": {
-                            "name": "get_market_data",
-                            "description": "Get real-time market data for a currency pair",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    "pair": {"type": "string"},
-                                    "window": {"type": "string", "default": "1h"},
-                                },
-                                "required": ["pair"],
+                        "name": "get_market_data",
+                        "description": "Get real-time market data for a currency pair",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "pair": {"type": "string"},
+                                "window": {"type": "string", "default": "1h"},
                             },
+                            "required": ["pair"],
                         },
                     },
                     {
                         "type": "function",
-                        "function": {
-                            "name": "get_order_flow",
-                            "description": "Get order flow statistics for a provider",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    "provider": {"type": "string"},
-                                    "window": {"type": "string", "default": "24h"},
-                                },
-                                "required": ["provider"],
+                        "name": "get_order_flow",
+                        "description": "Get order flow statistics for a provider",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "provider": {"type": "string"},
+                                "window": {"type": "string", "default": "24h"},
                             },
+                            "required": ["provider"],
                         },
                     },
                     {
                         "type": "function",
-                        "function": {
-                            "name": "get_execution_history",
-                            "description": "Get bucketed execution history for a provider/pair/size",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    "provider": {"type": "string"},
-                                    "pair": {"type": "string"},
-                                    "size_bucket": {"type": "string"},
-                                    "window": {"type": "string", "default": "7d"},
-                                },
-                                "required": ["provider", "pair", "size_bucket"],
+                        "name": "get_execution_history",
+                        "description": "Get bucketed execution history for a provider/pair/size",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "provider": {"type": "string"},
+                                "pair": {"type": "string"},
+                                "size_bucket": {"type": "string"},
+                                "window": {"type": "string", "default": "7d"},
                             },
+                            "required": ["provider", "pair", "size_bucket"],
                         },
                     },
                     {
                         "type": "function",
-                        "function": {
-                            "name": "get_risk_metrics",
-                            "description": "Get live risk metrics for a pair",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    "pair": {"type": "string"},
-                                },
-                                "required": ["pair"],
+                        "name": "get_risk_metrics",
+                        "description": "Get live risk metrics for a pair",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "pair": {"type": "string"},
                             },
+                            "required": ["pair"],
                         },
                     },
                     {
                         "type": "function",
-                        "function": {
-                            "name": "get_surveillance_signal",
-                            "description": "Get manipulation surveillance signal for a provider",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    "provider": {"type": "string"},
-                                    "window": {"type": "string", "default": "24h"},
-                                },
-                                "required": ["provider"],
+                        "name": "get_surveillance_signal",
+                        "description": "Get manipulation surveillance signal for a provider",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "provider": {"type": "string"},
+                                "window": {"type": "string", "default": "24h"},
                             },
+                            "required": ["provider"],
                         },
                     },
                     {
                         "type": "function",
-                        "function": {
-                            "name": "get_federation_metrics",
-                            "description": "Get federation cohort and model metrics",
-                            "parameters": {"type": "object", "properties": {}},
-                        },
+                        "name": "get_federation_metrics",
+                        "description": "Get federation cohort and model metrics",
+                        "parameters": {"type": "object", "properties": {}},
                     },
                 ],
             )
@@ -344,9 +332,15 @@ def main(agent: AgentSession, context: Context) -> None:
                     result_data = {"error": str(e)}
 
                 messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc["call_id"],
-                    "content": json.dumps(result_data),
+                    "type": "function_call",
+                    "call_id": tc["call_id"],
+                    "name": tc["name"],
+                    "arguments": tc["arguments"],
+                })
+                messages.append({
+                    "type": "function_call_output",
+                    "call_id": tc["call_id"],
+                    "output": json.dumps(result_data),
                 })
 
         if not answer:

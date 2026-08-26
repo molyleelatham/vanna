@@ -28,6 +28,10 @@ fab-include = [
   "LICENSE",
 ]
 
+[tool.flwr.app.config]
+# Empty string falls back to the VANNA_MODEL_ID env var, then the built-in default.
+model-id = ""
+
 [tool.flwr.app.config.agent]
 input = '{"pair":"EUR/USD","side":"BUY","size_bucket":"1m-5m","volatility":"high","available_providers":["LP_A","LP_B","LP_C"]}'
 
