@@ -24,17 +24,17 @@ class CounterpartyRiskAgent:
             raise ValueError("recommended provider has no reliability evidence")
 
         if connectors is not None:
-            try:
-                live = connectors.execution_history_or_fallback(
-                    provider=item.provider,
-                    pair="EUR/USD",  # TODO: pass pair from recommendation context
-                    size_bucket="1m-5m",  # TODO: pass size_bucket
-                )
+            # Blend only genuinely live data; fallback constants stay out.
+            live = connectors.execution_history_if_live(
+                provider=item.provider,
+                pair="EUR/USD",  # TODO: pass pair from recommendation context
+                size_bucket="1m-5m",  # TODO: pass size_bucket
+            )
+            if live is not None:
                 # Blend static + live for reliability scoring
                 blended_fill = 0.7 * item.fill_probability + 0.3 * live.fill_probability
                 blended_latency = 0.7 * item.expected_latency_ms + 0.3 * live.avg_latency_ms
                 blended_slippage = 0.7 * item.expected_slippage_bps + 0.3 * live.avg_slippage_bps
-                blended_asymmetry = 0.7 * item.rejection_asymmetry  # last_look handles this
                 # Use blended values for scoring
                 item = ProviderEvidence(
                     provider=item.provider,
@@ -48,8 +48,6 @@ class CounterpartyRiskAgent:
                     model_version=item.model_version,
                     generated_at=item.generated_at,
                 )
-            except Exception:
-                pass  # Use static item
 
         latency_score = max(0.0, 1.0 - item.expected_latency_ms / 150.0)
         slippage_score = max(0.0, 1.0 - item.expected_slippage_bps / 3.0)

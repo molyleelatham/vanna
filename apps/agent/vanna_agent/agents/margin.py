@@ -14,19 +14,14 @@ class MarginAgent:
         context: MarginContext,
         connectors: ConnectorClient | None = None,
     ) -> MarginAssessment:
-        # If connectors available, use live risk metrics; else use context
-        if connectors is not None:
-            try:
-                live = connectors.risk_metrics_or_fallback(pair=context.pair)
-                margin_utilization = live.margin_utilization
-                leverage_ratio = live.leverage_ratio
-                correlated_exposure = live.correlated_exposure
-                settlement_pressure = live.settlement_pressure
-            except Exception:
-                margin_utilization = context.margin_utilization
-                leverage_ratio = context.leverage_ratio
-                correlated_exposure = context.correlated_exposure
-                settlement_pressure = context.settlement_pressure
+        # Use live risk metrics only when genuinely live; else use context.
+        # Fallback constants are never blended in.
+        live = connectors.risk_metrics_if_live(pair=context.pair) if connectors is not None else None
+        if live is not None:
+            margin_utilization = live.margin_utilization
+            leverage_ratio = live.leverage_ratio
+            correlated_exposure = live.correlated_exposure
+            settlement_pressure = live.settlement_pressure
         else:
             margin_utilization = context.margin_utilization
             leverage_ratio = context.leverage_ratio

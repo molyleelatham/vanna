@@ -139,6 +139,15 @@ def export_approved_evidence(
         "cohort_size": 5,
         "raw_records_shared": 0,
         "client_identities_shared": 0,
+        "provenance": {
+            "fill_probability": "federated ensemble prediction from five desk partitions",
+            "expected_slippage_bps": "XGBoost regression over synthetic desk-profile targets (demo stand-in for per-desk local regressions)",
+            "expected_latency_ms": "XGBoost regression over synthetic desk-profile targets (demo stand-in for per-desk local regressions)",
+            "rejection_probability": "XGBoost regression over synthetic desk-profile targets (demo stand-in for per-desk local regressions)",
+            "displayed_price_benefit_bps": "synthetic desk-profile constant",
+            "rejection_asymmetry": "synthetic desk-profile constant",
+            "sample_count": "synthetic desk-profile constant",
+        },
         "providers": providers,
     }
     output = Path("artifacts/generated/provider_evidence.json")

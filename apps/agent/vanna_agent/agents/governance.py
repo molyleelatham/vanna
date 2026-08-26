@@ -14,17 +14,13 @@ class GovernanceAgent:
         context: GovernanceContext,
         connectors: ConnectorClient | None = None,
     ) -> GovernanceAssessment:
-        # Enrich with live federation metrics if available
-        if connectors is not None:
-            try:
-                fed = connectors.federation_metrics_or_fallback()
-                cohort_size = fed.cohort_size
-                anomalous_model_update = fed.anomalous_update_detected
-                synchronized_routing_ratio = fed.synchronized_routing_ratio
-            except Exception:
-                cohort_size = context.cohort_size
-                anomalous_model_update = context.anomalous_model_update
-                synchronized_routing_ratio = context.synchronized_routing_ratio
+        # Enrich with live federation metrics only when genuinely live;
+        # fallback constants never override the typed context.
+        fed = connectors.federation_metrics_if_live() if connectors is not None else None
+        if fed is not None:
+            cohort_size = fed.cohort_size
+            anomalous_model_update = fed.anomalous_update_detected
+            synchronized_routing_ratio = fed.synchronized_routing_ratio
         else:
             cohort_size = context.cohort_size
             anomalous_model_update = context.anomalous_model_update

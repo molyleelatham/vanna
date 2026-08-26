@@ -2,6 +2,15 @@
   "cohort_size": 5,
   "raw_records_shared": 0,
   "client_identities_shared": 0,
+  "provenance": {
+    "fill_probability": "federated ensemble prediction from five desk partitions",
+    "expected_slippage_bps": "XGBoost regression over synthetic desk-profile targets (demo stand-in for per-desk local regressions)",
+    "expected_latency_ms": "XGBoost regression over synthetic desk-profile targets (demo stand-in for per-desk local regressions)",
+    "rejection_probability": "XGBoost regression over synthetic desk-profile targets (demo stand-in for per-desk local regressions)",
+    "displayed_price_benefit_bps": "synthetic desk-profile constant",
+    "rejection_asymmetry": "synthetic desk-profile constant",
+    "sample_count": "synthetic desk-profile constant"
+  },
   "providers": [
     {
       "provider": "LP_A",
@@ -13,7 +22,7 @@
       "displayed_price_benefit_bps": 0.45,
       "rejection_asymmetry": 0.22,
       "model_version": "fed-xgb-b8f07874e6",
-      "generated_at": "2026-08-26T15:43:14.705263+00:00"
+      "generated_at": "2026-08-26T16:10:47.691826+00:00"
     },
     {
       "provider": "LP_B",
@@ -25,7 +34,7 @@
       "displayed_price_benefit_bps": 0.1,
       "rejection_asymmetry": 0.03,
       "model_version": "fed-xgb-b8f07874e6",
-      "generated_at": "2026-08-26T15:43:14.705263+00:00"
+      "generated_at": "2026-08-26T16:10:47.691826+00:00"
     },
     {
       "provider": "LP_C",
@@ -37,7 +46,7 @@
       "displayed_price_benefit_bps": 0.2,
       "rejection_asymmetry": 0.08,
       "model_version": "fed-xgb-b8f07874e6",
-      "generated_at": "2026-08-26T15:43:14.705263+00:00"
+      "generated_at": "2026-08-26T16:10:47.691826+00:00"
     }
   ]
 }

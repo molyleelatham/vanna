@@ -14,7 +14,7 @@ from openai import OpenAI
 from .agents import HANDOFF_CHAIN, OrchestratorAgent
 from .connectors import ConnectorClient
 from .domain import OrderRequest, ProviderEvidence
-from .xgboost_local import train_local_xgboost_models, compare_models  # type: ignore
+from .xgboost_local import build_model_comparison  # type: ignore
 
 MODEL = os.getenv("VANNA_MODEL_ID", "glm-5.2-fp8")
 MAX_AGENT_CALLS = 6
@@ -133,14 +133,17 @@ def pipeline_failure_answer(failure: str) -> str:
 
 
 def persist_result(context: Context, result: dict[str, Any], answer: str, connectors: ConnectorClient | None = None) -> None:
-    # Capture live data snapshot for audit
-    live_snapshot = {}
+    # Capture live data snapshot for audit (None when a connector is not live)
+    live_snapshot: dict[str, Any] = {}
     if connectors:
         try:
+            market = connectors.market_data_if_live("EUR/USD")
+            risk = connectors.risk_metrics_if_live("EUR/USD")
+            fed = connectors.federation_metrics_if_live()
             live_snapshot = {
-                "market_data": connectors.market_data_or_fallback("EUR/USD").__dict__,
-                "risk_metrics": connectors.risk_metrics_or_fallback("EUR/USD").__dict__,
-                "federation_metrics": connectors.federation_metrics_or_fallback().__dict__,
+                "market_data": market.__dict__ if market else None,
+                "risk_metrics": risk.__dict__ if risk else None,
+                "federation_metrics": fed.__dict__ if fed else None,
             }
         except Exception:
             live_snapshot = {"error": "failed to capture live snapshot"}
@@ -192,18 +195,16 @@ def main(agent: AgentSession, context: Context) -> None:
             timeout=MODEL_TIMEOUT_SECONDS,
         )
 
-        # Include local vs federated model comparison in initial context
-        fill_model, slippage_model, latency_model = train_local_xgboost_models()
-        model_comparison = compare_models(
-            pair=result["order_context"]["pair"],
-            providers=result["order_context"]["available_providers"],
-            evidence=evidence,
-            fill_model=fill_model,
-            slippage_model=slippage_model,
-            latency_model=latency_model,
-        )
-        
-        comparison_data = [c.__dict__ for c in model_comparison]
+        # Include genuine local-only vs federated comparison in initial context.
+        # Unavailable artifacts degrade the section, not the run.
+        try:
+            model_comparison = build_model_comparison(
+                pair=result["order_context"]["pair"],
+                providers=result["order_context"]["available_providers"],
+            )
+            comparison_data: Any = [c.__dict__ for c in model_comparison]
+        except Exception as exc:
+            comparison_data = {"unavailable": str(exc)}
         
         messages = [
             {
@@ -213,7 +214,8 @@ def main(agent: AgentSession, context: Context) -> None:
                     "in sequence: Vanna (execution value), LastLook (conditional rejection), "
                     "CounterpartyRisk (reliability), Margin (pressure), ManipulationWatch (surveillance), "
                     "Governance (final decision). "
-                    "Also present the Local XGBoost vs Federated XGBoost model comparison. "
+                    "Also present the single-desk-only vs five-desk federated ensemble comparison, "
+                    "including held-out log loss per provider. "
                     "Preserve all supplied numbers. State this is advisory "
                     "only — no automatic execution, blacklist, collective instruction, or misconduct finding."
                 ),
@@ -330,31 +332,36 @@ def main(agent: AgentSession, context: Context) -> None:
             if not tool_calls:
                 break
 
-            # Execute tool calls and add results to messages
+            # Execute tool calls and add results to messages. Tools report
+            # availability honestly instead of silently returning constants.
             for tc in tool_calls:
                 try:
                     args = json.loads(tc["arguments"])
                     tool_name = tc["name"]
+                    unavailable = {
+                        "available": False,
+                        "note": "live connector unavailable; decisions rely on static federation evidence",
+                    }
                     if tool_name == "get_market_data":
-                        data = connectors.market_data_or_fallback(args["pair"], args.get("window", "1h"))
-                        result_data = data.__dict__
+                        data = connectors.market_data_if_live(args["pair"], args.get("window", "1h"))
+                        result_data = {"available": True, **data.__dict__} if data else unavailable
                     elif tool_name == "get_order_flow":
-                        data = connectors.order_flow_or_fallback(args["provider"], args.get("window", "24h"))
-                        result_data = data.__dict__
+                        data = connectors.order_flow_if_live(args["provider"], args.get("window", "24h"))
+                        result_data = {"available": True, **data.__dict__} if data else unavailable
                     elif tool_name == "get_execution_history":
-                        data = connectors.execution_history_or_fallback(
+                        data = connectors.execution_history_if_live(
                             args["provider"], args["pair"], args["size_bucket"], args.get("window", "7d")
                         )
-                        result_data = data.__dict__
+                        result_data = {"available": True, **data.__dict__} if data else unavailable
                     elif tool_name == "get_risk_metrics":
-                        data = connectors.risk_metrics_or_fallback(args["pair"])
-                        result_data = data.__dict__
+                        data = connectors.risk_metrics_if_live(args["pair"])
+                        result_data = {"available": True, **data.__dict__} if data else unavailable
                     elif tool_name == "get_surveillance_signal":
-                        data = connectors.surveillance_signal_or_fallback(args["provider"], args.get("window", "24h"))
-                        result_data = data.__dict__
+                        data = connectors.surveillance_signal_if_live(args["provider"], args.get("window", "24h"))
+                        result_data = {"available": True, **data.__dict__} if data else unavailable
                     elif tool_name == "get_federation_metrics":
-                        data = connectors.federation_metrics_or_fallback()
-                        result_data = data.__dict__
+                        data = connectors.federation_metrics_if_live()
+                        result_data = {"available": True, **data.__dict__} if data else unavailable
                     else:
                         result_data = {"error": f"Unknown tool: {tool_name}"}
                 except Exception as e:

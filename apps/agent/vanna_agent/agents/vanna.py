@@ -25,27 +25,20 @@ class VannaAgent:
         if connectors is None:
             return base_recommendation
 
-        # Enrich with live execution history per available provider
+        # Enrich with live execution history per available provider.
+        # Fallback constants are never blended in — only genuinely live data.
         live_evidence = []
         for provider in order.available_providers:
-            try:
-                live = connectors.execution_history_or_fallback(
-                    provider=provider,
-                    pair=order.pair,
-                    size_bucket=order.size_bucket,
-                )
-                # Blend static evidence (federation) with live connector data
-                static = next((e for e in evidence if e.provider == provider), None)
-                if static:
-                    blended = self._blend_evidence(static, live)
-                    live_evidence.append(blended)
-                else:
-                    live_evidence.append(live)
-            except Exception:
-                # Fallback to static only
-                static = next((e for e in evidence if e.provider == provider), None)
-                if static:
-                    live_evidence.append(static)
+            live = connectors.execution_history_if_live(
+                provider=provider,
+                pair=order.pair,
+                size_bucket=order.size_bucket,
+            )
+            static = next((e for e in evidence if e.provider == provider), None)
+            if live is not None and static is not None:
+                live_evidence.append(self._blend_evidence(static, live))
+            elif static is not None:
+                live_evidence.append(static)
 
         if live_evidence:
             return recommend(order, live_evidence, now=now)

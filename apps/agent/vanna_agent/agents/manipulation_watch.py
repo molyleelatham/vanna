@@ -14,26 +14,20 @@ class ManipulationWatch:
         context: MarketPatternContext,
         connectors: ConnectorClient | None = None,
     ) -> ManipulationAssessment:
-        # If connectors available, use live surveillance signal; else use context
-        if connectors is not None:
-            try:
-                live = connectors.surveillance_signal_or_fallback(
-                    provider=context.provider,
-                    window="24h",
-                )
-                quote_to_trade_ratio = live.quote_to_trade_ratio
-                cancellation_rate = live.cancellation_rate
-                synchronized_quote_score = live.synchronized_quote_score
-                cross_pair_anomaly_score = live.cross_pair_anomaly_score
-                pre_movement_activity_score = live.pre_movement_activity_score
-                sample_count = live.sample_count
-            except Exception:
-                quote_to_trade_ratio = context.quote_to_trade_ratio
-                cancellation_rate = context.cancellation_rate
-                synchronized_quote_score = context.synchronized_quote_score
-                cross_pair_anomaly_score = context.cross_pair_anomaly_score
-                pre_movement_activity_score = context.pre_movement_activity_score
-                sample_count = context.sample_count
+        # Use live surveillance signal only when genuinely live; else context.
+        # Fallback constants are never blended in.
+        live = (
+            connectors.surveillance_signal_if_live(provider=context.provider, window="24h")
+            if connectors is not None
+            else None
+        )
+        if live is not None:
+            quote_to_trade_ratio = live.quote_to_trade_ratio
+            cancellation_rate = live.cancellation_rate
+            synchronized_quote_score = live.synchronized_quote_score
+            cross_pair_anomaly_score = live.cross_pair_anomaly_score
+            pre_movement_activity_score = live.pre_movement_activity_score
+            sample_count = live.sample_count
         else:
             quote_to_trade_ratio = context.quote_to_trade_ratio
             cancellation_rate = context.cancellation_rate

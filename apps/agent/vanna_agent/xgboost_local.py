@@ -1,17 +1,21 @@
-"""Local XGBoost training and comparison for AgentApp (standalone, no connector dependency)."""
+"""Genuine local-only vs federated comparison for the AgentApp.
+
+The "local" model is trained on ONE desk's persisted partition (desk 0) — what
+a single desk would know alone. The "federated" model is the final ensemble
+produced by the five-desk federation. Both are evaluated on the desk's
+held-out test split, so the comparison measures the actual value of
+collaboration instead of restating the constants the evidence was built from.
+"""
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import xgboost as xgb
 
-from .domain import ProviderEvidence
-
-# Feature names from federation data module
 FEATURE_NAMES = (
     "is_lp_a",
     "is_lp_b",
@@ -23,136 +27,113 @@ FEATURE_NAMES = (
     "quote_age_scaled",
 )
 
+ARTIFACTS = Path(__file__).parent / "artifacts"
+FEDERATED_MODEL_PATH = ARTIFACTS / "federated_final_model.json"
+LOCAL_DESK_PATH = ARTIFACTS / "local_desk_0.json"
+
+# Same LP feature vectors the federation uses for evidence export (high vol).
+LP_FEATURES = np.array(
+    [
+        [1, 0, 0, 1, 1, 0, 0.4, 0.25],  # LP_A
+        [0, 1, 0, 1, 0, 0, 0.4, 0.25],  # LP_B
+        [0, 0, 1, 1, 0, 1, 0.4, 0.25],  # LP_C
+    ],
+    dtype=np.float64,
+)
+
+LOCAL_TRAIN_PARAMS = {
+    "objective": "binary:logistic",
+    "max_depth": 4,
+    "eta": 0.1,
+    "seed": 20260826,
+    "verbosity": 0,
+}
+
 
 @dataclass(frozen=True)
 class ModelComparison:
     pair: str
     provider: str
     federated_fill_prob: float
-    xgboost_fill_prob: float
-    federated_slippage_bps: float
-    xgboost_slippage_bps: float
-    federated_latency_ms: float
-    xgboost_latency_ms: float
-    xgboost_feature_importance: dict[str, float]
+    local_only_fill_prob: float
+    federated_logloss_held_out: float
+    local_only_logloss_held_out: float
     model_agreement: bool
+    federated_feature_importance: dict[str, float]
 
 
-def _train_local_xgb_models() -> tuple[xgb.Booster, xgb.Booster, xgb.Booster]:
-    """Train local XGBoost models on synthetic data matching federation features."""
-    rng = np.random.default_rng(20260826)
-    n_samples = 2000
-    
-    # Features: provider, high_vol, size, quote_age
-    provider = rng.choice(3, n_samples, p=[0.4, 0.35, 0.25])
-    high_vol = rng.binomial(1, 0.3, n_samples)
-    size_scaled = rng.uniform(0.05, 1.0, n_samples)
-    quote_age_scaled = rng.uniform(0.0, 1.0, n_samples)
-    one_hot = np.eye(3, dtype=np.float64)[provider]
-    
-    X_full = np.column_stack([
-        one_hot,
-        high_vol,
-        one_hot[:, 0] * high_vol,
-        one_hot[:, 2] * high_vol,
-        size_scaled,
-        quote_age_scaled,
-    ])
-    
-    # Targets
-    logits = (
-        1.25 - 0.30 * one_hot[:, 0] + 0.38 * one_hot[:, 1] + 0.02 * one_hot[:, 2]
-        - 0.80 * high_vol - 1.05 * one_hot[:, 0] * high_vol - 0.62 * one_hot[:, 2] * high_vol
-        - 0.35 * size_scaled - 0.40 * quote_age_scaled
-    )
-    y_fill = rng.binomial(1, 1.0 / (1.0 + np.exp(-np.clip(logits, -30, 30))))
-    
-    y_slippage = 1.10 * one_hot[:, 0] + 0.42 * one_hot[:, 1] + 0.84 * one_hot[:, 2]
-    y_slippage += 0.5 * high_vol + rng.normal(0, 0.1, n_samples)
-    
-    y_latency = 78.0 * one_hot[:, 0] + 31.0 * one_hot[:, 1] + 86.0 * one_hot[:, 2]
-    y_latency += 20.0 * high_vol + rng.normal(0, 5.0, n_samples)
-    
-    dtrain_fill = xgb.DMatrix(X_full, label=y_fill, feature_names=FEATURE_NAMES)
-    dtrain_slip = xgb.DMatrix(X_full, label=y_slippage, feature_names=FEATURE_NAMES)
-    dtrain_lat = xgb.DMatrix(X_full, label=y_latency, feature_names=FEATURE_NAMES)
-    
-    fill_params = {"objective": "binary:logistic", "max_depth": 4, "eta": 0.1, "seed": 20260826, "verbosity": 0}
-    reg_params = {"objective": "reg:squarederror", "max_depth": 4, "eta": 0.1, "seed": 20260826, "verbosity": 0}
-    
-    fill_model = xgb.train(fill_params, dtrain_fill, num_boost_round=50)
-    slippage_model = xgb.train(reg_params, dtrain_slip, num_boost_round=50)
-    latency_model = xgb.train(reg_params, dtrain_lat, num_boost_round=50)
-    
-    return fill_model, slippage_model, latency_model
+def _logloss(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    eps = 1e-8
+    clipped = np.clip(y_pred, eps, 1 - eps)
+    return float(-np.mean(y_true * np.log(clipped) + (1 - y_true) * np.log(1 - clipped)))
 
 
-def train_local_xgboost_models() -> tuple[xgb.Booster, xgb.Booster, xgb.Booster]:
-    """Train and return local XGBoost models (fill, slippage, latency)."""
-    # Try to load from artifact first
-    model_dir = Path(__file__).parent / "artifacts" / "xgboost_models"
-    if (model_dir / "fill_model.json").exists():
-        fill_model = xgb.Booster()
-        fill_model.load_model(str(model_dir / "fill_model.json"))
-        slippage_model = xgb.Booster()
-        slippage_model.load_model(str(model_dir / "slippage_model.json"))
-        latency_model = xgb.Booster()
-        latency_model.load_model(str(model_dir / "latency_model.json"))
-        return fill_model, slippage_model, latency_model
-    
-    return _train_local_xgb_models()
+def _load_federated_model(path: Path = FEDERATED_MODEL_PATH) -> xgb.Booster:
+    if not path.exists():
+        raise FileNotFoundError(
+            f"federated ensemble missing at {path}; run scripts/sync_federation_artifact.py"
+        )
+    model = xgb.Booster()
+    model.load_model(bytearray(path.read_bytes()))
+    return model
 
 
-def compare_models(
-    pair: str,
-    providers: list[str],
-    evidence: list[ProviderEvidence],
-    fill_model: xgb.Booster,
-    slippage_model: xgb.Booster,
-    latency_model: xgb.Booster,
-) -> list[ModelComparison]:
-    """Compare local XGBoost predictions vs federated logistic evidence."""
-    comparisons = []
+def _train_local_only_model(path: Path = LOCAL_DESK_PATH) -> tuple[xgb.Booster, np.ndarray, np.ndarray]:
+    """Train on one desk's partition only; return the model and its held-out split."""
+    if not path.exists():
+        raise FileNotFoundError(
+            f"local desk partition missing at {path}; run scripts/sync_federation_artifact.py"
+        )
+    data = json.loads(path.read_text(encoding="utf-8"))
+    x_train = np.asarray(data["x_train"], dtype=np.float64)
+    y_train = np.asarray(data["y_train"], dtype=np.float64)
+    x_test = np.asarray(data["x_test"], dtype=np.float64)
+    y_test = np.asarray(data["y_test"], dtype=np.float64)
+    dtrain = xgb.DMatrix(x_train, label=y_train, feature_names=FEATURE_NAMES)
+    model = xgb.train(LOCAL_TRAIN_PARAMS, dtrain, num_boost_round=50)
+    return model, x_test, y_test
+
+
+def build_model_comparison(pair: str, providers: list[str]) -> list[ModelComparison]:
+    """Compare the federated ensemble against a single-desk model, held out."""
+    federated = _load_federated_model()
+    local_model, x_test, y_test = _train_local_only_model()
+
+    importance = federated.get_score(importance_type="gain")
+    full_importance = {name: float(importance.get(name, 0.0)) for name in FEATURE_NAMES}
+
+    fed_test_preds = federated.predict(xgb.DMatrix(x_test, feature_names=FEATURE_NAMES))
+    local_test_preds = local_model.predict(xgb.DMatrix(x_test, feature_names=FEATURE_NAMES))
+
+    provider_columns = {"LP_A": 0, "LP_B": 1, "LP_C": 2}
+    comparisons: list[ModelComparison] = []
     for provider in providers:
-        fed = next((e for e in evidence if e.provider == provider), None)
-        if not fed:
+        col = provider_columns.get(provider)
+        if col is None:
             continue
-        
-        # Build feature vector
-        is_lp_a = 1.0 if provider == "LP_A" else 0.0
-        is_lp_b = 1.0 if provider == "LP_B" else 0.0
-        is_lp_c = 1.0 if provider == "LP_C" else 0.0
-        high_vol = 0.3
-        size_scaled = 0.5
-        quote_age_scaled = 0.3
-        
-        X = np.array([[
-            is_lp_a, is_lp_b, is_lp_c, high_vol,
-            is_lp_a * high_vol, is_lp_c * high_vol,
-            size_scaled, quote_age_scaled
-        ]])
-        dmatrix = xgb.DMatrix(X, feature_names=FEATURE_NAMES)
-        
-        xgb_fill = float(fill_model.predict(dmatrix)[0])
-        xgb_slippage = float(slippage_model.predict(dmatrix)[0])
-        xgb_latency = float(latency_model.predict(dmatrix)[0])
-        
-        importance = fill_model.get_score(importance_type="gain")
-        full_importance = {name: importance.get(name, 0.0) for name in FEATURE_NAMES}
-        
-        model_agreement = (xgb_fill > 0.5) == (fed.fill_probability > 0.5)
-        
-        comparisons.append(ModelComparison(
-            pair=pair,
-            provider=provider,
-            federated_fill_prob=fed.fill_probability,
-            xgboost_fill_prob=xgb_fill,
-            federated_slippage_bps=fed.expected_slippage_bps,
-            xgboost_slippage_bps=xgb_slippage,
-            federated_latency_ms=fed.expected_latency_ms,
-            xgboost_latency_ms=xgb_latency,
-            xgboost_feature_importance=full_importance,
-            model_agreement=model_agreement,
-        ))
-    
+
+        row = LP_FEATURES[col : col + 1]
+        fed_fill = float(federated.predict(xgb.DMatrix(row, feature_names=FEATURE_NAMES))[0])
+        local_fill = float(local_model.predict(xgb.DMatrix(row, feature_names=FEATURE_NAMES))[0])
+
+        # Per-provider held-out loss on the desk's test split
+        mask = x_test[:, col] == 1.0
+        if mask.sum() >= 5:
+            fed_loss = _logloss(y_test[mask], fed_test_preds[mask])
+            local_loss = _logloss(y_test[mask], local_test_preds[mask])
+        else:
+            fed_loss = local_loss = float("nan")
+
+        comparisons.append(
+            ModelComparison(
+                pair=pair,
+                provider=provider,
+                federated_fill_prob=round(fed_fill, 6),
+                local_only_fill_prob=round(local_fill, 6),
+                federated_logloss_held_out=round(fed_loss, 4),
+                local_only_logloss_held_out=round(local_loss, 4),
+                model_agreement=(fed_fill > 0.5) == (local_fill > 0.5),
+                federated_feature_importance=full_importance,
+            )
+        )
     return comparisons
