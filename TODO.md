@@ -1,8 +1,8 @@
 # Vanna Hackathon — Completion TODO
 
-**Last updated:** 2026-08-26  
-**Status:** ✅ **Priority 1 DONE** — OrchestratorAgent wired, 6-agent chain running, GovernanceAgent produces final decision  
-**Remaining:** Priority 2 (prompts), Priority 3 (tests), Priority 4 (SuperGrid + AMD), Priority 5 (metrics)
+**Last updated:** 2026-08-26 (evening)  
+**Status:** ✅ **Priorities 1, 2, 4 DONE** — 6-agent chain with per-agent `explain()` contributions; **SuperGrid live end-to-end** (federation run `12309076582906127164`, AgentApp run `1896158749138907396`)  
+**Remaining:** Priority 3 (tests), Priority 5 (metrics), AMD model ID (blocked on hackathon Slack), audit-gap fixes, demo rehearsal
 
 ---
 
@@ -40,18 +40,19 @@ Output includes all 6 agents + final Governance decision.
 
 | Priority | Task | Status | Effort |
 |----------|------|--------|--------|
-| **2.1** | Add `explain()` methods to each agent for LLM narration | ⬜ Not started | Low |
-| **2.2** | Structured handoff payloads between agents | ⬜ Not started | Low |
-| **2.3** | Orchestrator streams each agent's contribution | ⬜ Not started | Low |
+| **2.1** | Add `explain()` methods to each agent for LLM narration | ✅ Done (`ddc3815`) | Low |
+| **2.2** | Structured handoff payloads between agents | ✅ Done — `AgentContribution` contract (`ddc3815`) | Low |
+| **2.3** | Orchestrator streams each agent's contribution | ✅ Done — contributions collected in handoff order, rendered per-agent (`ddc3815`) | Low |
 | **3.1** | Timeout/retries for model calls | ⬜ Not started | Medium |
 | **3.2** | Test malformed agent outputs caught | ⬜ Not started | Medium |
 | **3.3** | Test child-agent failure → deterministic fallback | ⬜ Not started | Medium |
-| **4.1** | Configure AMD model endpoint env vars | ⬜ Not started | Medium (infra) |
-| **4.2** | Start local SuperLink: `uv run flower-superlink --insecure` | ⬜ Not started | Medium (infra) |
-| **4.3** | Run AgentApp on SuperGrid `@molyleela/Vanna` | ⬜ Not started | Medium (infra) |
-| **5.1** | Capture federation round times, loss improvement | ⬜ Not started | Low |
-| **5.2** | Capture AgentApp latency (with/without model) | ⬜ Not started | Low |
-| **5.3** | Update README demo flow with measured numbers | ⬜ Not started | Low |
+| **4.1** | AMD model ID from hackathon Slack → re-run with `--run-config "model-id='...'"` | ⏳ Blocked on Slack (run-config override ready, `b421dd2`) | Low |
+| **4.2** | Start local SuperLink: `uv run flower-superlink --insecure` | ⬜ Not started (optional — SuperGrid path works) | Medium (infra) |
+| **4.3** | Run AgentApp on SuperGrid `@molyleela/Vanna` | ✅ Done — run `1896158749138907396` (~22s, fallback narration) | Medium (infra) |
+| **4.4** | 5 SuperNodes registered + online on SuperGrid | ✅ Done — federation run `12309076582906127164` (3 rounds, 5/5 nodes, 0 raw records) | — |
+| **5.1** | Capture federation round times, loss improvement | 🟡 Partial — SuperGrid ~2.5 min measured; **eval loss rose 0.64→0.78** (retune `local-trees` before claiming improvement) | Low |
+| **5.2** | Capture AgentApp latency (with/without model) | ✅ Done — ~22s SuperGrid with fallback; local demo <1s | Low |
+| **5.3** | Update README demo flow with measured numbers | ⬜ Not started — README still says "FedAvg"/"until orchestrator merge" (stale) | Low |
 
 ---
 
@@ -134,10 +135,10 @@ Output includes all 6 agents + final Governance decision.
 
 ## 📌 IMMEDIATE NEXT STEPS
 
-**Moly:** Pick one Priority 2 task (e.g., add `explain()` to `VannaAgent`)  
-**Melanie:** Follow `MELANIE.md` to start 5 SuperNodes when ready
+**Moly:** Priority 3 tests (timeout/retry, malformed output, child-failure fallback) or README refresh (5.3)  
+**Melanie:** Send the AMD model ID from hackathon Slack (only blocker for live LLM narration) — full context in `HANDOVER_MELANIE.md`
 
-The **local demo is fully functional** — no blocker for hackathon demo preparation.
+The **local demo and the SuperGrid path are both fully functional** — no blocker for hackathon demo preparation. Remaining demo prep: rehearse the `DEMO.md` script, restart/verify the 5 nodes beforehand (`flwr supernode list supergrid`).
 
 ---
 
