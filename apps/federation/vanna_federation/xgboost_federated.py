@@ -29,6 +29,20 @@ XGB_PARAMS = {
     "nthread": 1,
 }
 
+# Regression params for slippage/latency
+XGB_REG_PARAMS = {
+    "objective": "reg:squarederror",
+    "max_depth": 4,
+    "eta": 0.1,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "eval_metric": "rmse",
+    "seed": 20260826,
+    "verbosity": 0,
+    "tree_method": "hist",
+    "nthread": 1,
+}
+
 NUM_LOCAL_TREES = 1  # trees per client per round
 NUM_BOOST_ROUND = 1  # local-epochs equivalent
 
@@ -82,9 +96,9 @@ def xgb_model_to_bytes(model: xgb.Booster) -> bytes:
     return model.save_raw("json")
 
 
-def bytes_to_xgb_model(raw: bytes) -> xgb.Booster:
+def bytes_to_xgb_model(raw: bytes, params: dict | None = None) -> xgb.Booster:
     """Deserialize bytes to XGBoost model."""
-    model = xgb.Booster(params=XGB_PARAMS)
+    model = xgb.Booster(params=params or XGB_PARAMS)
     model.load_model(bytearray(raw))
     return model
 
@@ -166,3 +180,61 @@ def save_model(model_bytes: bytes, path: Path) -> None:
 def load_model(path: Path) -> bytes:
     """Load XGBoost model bytes from file."""
     return path.read_bytes()
+
+
+# Multi-target regression models (slippage, latency, rejection probability)
+def train_xgboost_regression(
+    x_train: NDArray[np.float64],
+    y_train: NDArray[np.float64],
+    global_model_bytes: bytes | None = None,
+    num_local_trees: int = NUM_LOCAL_TREES,
+) -> tuple[bytes, float]:
+    """Train local XGBoost regression model starting from global model."""
+    if global_model_bytes:
+        global_model = bytes_to_xgb_model(global_model_bytes)
+    else:
+        global_model = xgb.Booster(params=XGB_REG_PARAMS)
+    
+    dtrain = xgb.DMatrix(x_train, label=y_train, feature_names=FEATURE_NAMES)
+    updated_model = xgb.train(
+        XGB_REG_PARAMS,
+        dtrain,
+        num_boost_round=num_local_trees,
+        xgb_model=global_model,
+    )
+    preds = updated_model.predict(dtrain)
+    loss = float(np.mean((preds - y_train) ** 2))
+    return xgb_model_to_bytes(updated_model), loss
+
+
+def predict_xgboost_regression(
+    model_bytes: bytes,
+    x: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Predict continuous target (slippage, latency, rejection prob)."""
+    model = bytes_to_xgb_model(model_bytes, params=XGB_REG_PARAMS)
+    dmatrix = xgb.DMatrix(x, feature_names=FEATURE_NAMES)
+    return model.predict(dmatrix)
+
+
+def train_local_regression_models(
+    x_train: NDArray[np.float64],
+    y_slippage: NDArray[np.float64],
+    y_latency: NDArray[np.float64],
+    y_rejection: NDArray[np.float64],
+) -> tuple[bytes, bytes, bytes]:
+    """Train local regression models for slippage, latency, rejection probability."""
+    dtrain_slip = xgb.DMatrix(x_train, label=y_slippage, feature_names=FEATURE_NAMES)
+    dtrain_lat = xgb.DMatrix(x_train, label=y_latency, feature_names=FEATURE_NAMES)
+    dtrain_rej = xgb.DMatrix(x_train, label=y_rejection, feature_names=FEATURE_NAMES)
+    
+    # Create fresh boosters with regression params (not binary logistic)
+    slip_model = xgb.train(XGB_REG_PARAMS, dtrain_slip, num_boost_round=50)
+    lat_model = xgb.train(XGB_REG_PARAMS, dtrain_lat, num_boost_round=50)
+    rej_model = xgb.train(XGB_REG_PARAMS, dtrain_rej, num_boost_round=50)
+    
+    return (
+        xgb_model_to_bytes(slip_model),
+        xgb_model_to_bytes(lat_model),
+        xgb_model_to_bytes(rej_model),
+    )
