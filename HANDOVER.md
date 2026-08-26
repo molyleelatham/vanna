@@ -4,18 +4,23 @@ Last updated: 26 August 2026
 
 ## Current state
 
-The core Flower infrastructure is working and ready for independent agent
-development.
+The core Flower infrastructure is working, and SuperGrid is live end-to-end.
 
 - Flower target: `1.35.0`
 - SuperGrid login: completed
-- SuperGrid federation: `@molyleela/Vanna`
+- SuperGrid federation: `@molyleela/Vanna` — **5 SuperNodes registered and
+  online** (node IDs and operating guide in `HANDOVER_MELANIE.md`)
+- **SuperGrid federation run completed**: run `12309076582906127164`, 3 rounds,
+  5/5 nodes, 0 failures, 0 raw records/identities shared, ~2.5 min
+- **SuperGrid AgentApp run completed**: run `1896158749138907396`, full 6-agent
+  chain, LP_B @ 2.03 bps, Governance HUMAN_REVIEW, ~22s (deterministic
+  narration fallback — awaiting AMD model ID from hackathon Slack)
 - Local simulation: five SuperNodes
 - Federation FAB: builds successfully
 - Agent FAB: builds successfully
 - Agent roles: Vanna, LastLookAgent, CounterpartyRiskAgent, MarginAgent,
   ManipulationWatch, GovernanceAgent, **OrchestratorAgent**
-- Tests: 13 passing
+- Tests: 18 passing
 - Deterministic live-path demo: working (full 6-agent chain)
 
 The completed federation run executed three FedAvg rounds across five clients
@@ -133,9 +138,13 @@ To connect SuperNodes to the `@molyleela/Vanna` federation:
 1. Refine prompts or model-backed explanations for the completed deterministic
    agent roles without moving numerical decisions into the model.
 2. ~~Merge the orchestration layer~~ **DONE** — OrchestratorAgent wired in AgentApp.
-3. Run the complete AgentApp on `@molyleela/Vanna` with the selected AMD model.
+3. ~~Run the complete AgentApp on `@molyleela/Vanna`~~ **DONE** (run
+   `1896158749138907396`) — re-run with `--run-config "model-id='...'"` once the
+   AMD model ID arrives from hackathon Slack for live narration.
 4. Add agent timeout, malformed-output, and child-failure integration tests.
-5. Record only measured final demo metrics.
+5. Record only measured final demo metrics. Note: SuperGrid eval loss rose
+   across rounds (0.64 → 0.78) with `local-trees=1` — retune before claiming
+   improvement.
 
 ## New capabilities (since last handover)
 
