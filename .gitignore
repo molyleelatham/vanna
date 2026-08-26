@@ -11,3 +11,4 @@ build/
 *.fab
 artifacts/generated/
 data/generated/
+.env
