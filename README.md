@@ -7,8 +7,8 @@ tightest displayed quote is not always the best executable quote.
 Five simulated desks train on private execution histories. Flower aggregates
 their model updates. Six typed agent roles cover execution value, last look,
 counterparty reliability, margin pressure, manipulation signals, and
-governance. The current bounded Vanna → LastLook runtime remains in place until
-the final orchestrator merge. Raw orders, client identities, UTIs, and live
+governance, sequenced by the merged OrchestratorAgent with per-agent
+`explain()` contributions. Raw orders, client identities, UTIs, and live
 intentions never enter the shared payload.
 
 ## Architecture
@@ -17,7 +17,7 @@ intentions never enter the shared payload.
 Five private desk partitions
         │ model updates only
         ▼
-Flower ClientApp + ServerApp (FedAvg)
+Flower ClientApp + ServerApp (FedXgbBagging; opt-in FedAvg + SecAgg+ mode)
         │ approved aggregate evidence
         ▼
 Vanna Agent → specialist typed handoffs
@@ -145,9 +145,13 @@ Override it with `--run-config 'agent.input={...}'`.
 6. Show LastLook flagging LP_A's conditional asymmetry as a review signal only.
 7. Show the governance result, human control, and deterministic fallback.
 
-Use only metrics printed by the actual run. This prototype does not execute
-trades, blacklist providers, coordinate desks, or replace production
-compliance systems.
+Measured on 2026-08-26: SuperGrid federation run `12309076582906127164`
+(3 rounds, 5/5 nodes, 0 failures, ~2.5 min including FAB upload); SuperGrid
+AgentApp run `1896158749138907396` (~22 s); local SuperLink + Qwen3.5-397B
+narration (~69 s); deterministic local demo (<1 s); SecAgg+ secure-mode
+simulation (3 rounds, 5/5 nodes, 16.4 s). Use only metrics printed by the
+actual run. This prototype does not execute trades, blacklist providers,
+coordinate desks, or replace production compliance systems.
 
 ## Source documents
 

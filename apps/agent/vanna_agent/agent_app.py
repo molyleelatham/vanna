@@ -19,6 +19,9 @@ from .xgboost_local import train_local_xgboost_models, compare_models  # type: i
 MODEL = os.getenv("VANNA_MODEL_ID", "glm-5.2-fp8")
 MAX_AGENT_CALLS = 6
 MAX_TOOL_TURNS = 3
+# Bound the model call so a hung endpoint degrades to the deterministic
+# fallback instead of stalling the run. No retries: fail fast, stay safe.
+MODEL_TIMEOUT_SECONDS = float(os.getenv("VANNA_MODEL_TIMEOUT", "120"))
 EVIDENCE_PATH = Path(__file__).parent / "artifacts" / "provider_evidence.json"
 
 app = AgentApp()
@@ -114,6 +117,21 @@ def deterministic_answer(result: dict[str, Any], failure: str | None = None) -> 
     return "\n".join(lines)
 
 
+def pipeline_failure_answer(failure: str) -> str:
+    """Safe deterministic answer when a child agent breaks the chain.
+
+    No recommendation is produced and the posture is human review; the app
+    must never emit a partial chain as if it were complete.
+    """
+    return "\n".join([
+        f"Handoff: {' -> '.join(HANDOFF_CHAIN)}",
+        "Agent chain failed before completion; no routing recommendation produced.",
+        "Governance: HUMAN_REVIEW — pipeline failure fallback (no auto-execution or blacklist).",
+        "Privacy: 0 raw records and 0 client identities shared.",
+        f"Deterministic fallback used: {failure}",
+    ])
+
+
 def persist_result(context: Context, result: dict[str, Any], answer: str, connectors: ConnectorClient | None = None) -> None:
     # Capture live data snapshot for audit
     live_snapshot = {}
@@ -146,8 +164,18 @@ def main(agent: AgentSession, context: Context) -> None:
     # Initialize connector client for live data
     connectors = ConnectorClient(agent)
 
-    # Run pipeline with live data enrichment
-    result = run_pipeline(prompt, connectors=connectors)
+    # Run pipeline with live data enrichment; a failing child agent degrades
+    # the whole chain to a safe human-review answer rather than crashing.
+    try:
+        result = run_pipeline(prompt, connectors=connectors)
+    except Exception as exc:
+        answer = pipeline_failure_answer(str(exc))
+        with context.locked():
+            context.state.config_records["vanna-state"] = ConfigRecord(
+                {"json": json.dumps({"error": str(exc), "answer": answer})}
+            )
+        print(answer)
+        return
     
     # Load evidence for model comparison
     import json
@@ -161,6 +189,7 @@ def main(agent: AgentSession, context: Context) -> None:
             base_url=os.environ["FLWR_RUNTIME_BASE_URL"],
             api_key=os.environ["FLWR_RUNTIME_API_KEY"],
             max_retries=0,
+            timeout=MODEL_TIMEOUT_SECONDS,
         )
 
         # Include local vs federated model comparison in initial context
