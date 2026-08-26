@@ -1,0 +1,40 @@
+{
+  "run_id": "fed-xgb-20260826-133634",
+  "started_at": "2026-08-26T13:36:34.569285+00:00",
+  "completed_at": "2026-08-26T13:36:46.429175+00:00",
+  "config": {
+    "num_desks": 5,
+    "num_rounds": 3,
+    "local_trees": 1,
+    "fraction_evaluate": 1.0
+  },
+  "rounds": [
+    {
+      "round": 1,
+      "timestamp": "2026-08-26T13:36:45.834539+00:00",
+      "metrics": {
+        "round": 1
+      },
+      "model_path": "artifacts/checkpoints/round_1_model.json"
+    },
+    {
+      "round": 2,
+      "timestamp": "2026-08-26T13:36:46.057554+00:00",
+      "metrics": {
+        "round": 2
+      },
+      "model_path": "artifacts/checkpoints/round_2_model.json"
+    },
+    {
+      "round": 3,
+      "timestamp": "2026-08-26T13:36:46.396929+00:00",
+      "metrics": {
+        "round": 3
+      },
+      "model_path": "artifacts/checkpoints/round_3_model.json"
+    }
+  ],
+  "final_model_path": "artifacts/final_ensemble/final_model.json",
+  "feature_importance_path": "artifacts/generated/feature_importance.json",
+  "provider_evidence_path": "artifacts/generated/provider_evidence.json"
+}
